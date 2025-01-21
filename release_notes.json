@@ -1,0 +1,131 @@
+{
+    "versions": {
+        "0.1.9f": [
+            "Hotfix for Maya 2025 Default Attributes."
+        ],
+        "0.1.9e": [
+            "Updated UI version to 0.1.9e.",
+            "Fixed unknown issue.",
+            "Improved UI performance.",
+            "And more..."
+        ],
+        "0.1.9d": [
+            "Fixed utils and funcs.",
+            "And more..."
+        ],
+        "0.1.9c": [
+            "Updated Window logic.",
+            "Resolved some issues.",
+            "Compatibility with MacOS."
+        ],
+        "0.1.9a": [
+            "Fixed camera tools creation.",
+            "Updated UI script.",
+            "And more..."
+        ],
+        "0.1.9": [
+            "Support for Maya 2025.",
+            "Better Everything."
+        ],
+        "0.1.82": [
+            "Improved workspace control and UI management.",
+            "Improved attribute handling for FaceCamMode.",
+            "Enhanced aim offset selection and more..."
+        ],
+        "0.1.81beta": [
+            "Menu options rearranged.",
+            "New icons added for a better user experience.",
+            "And more..."
+        ],
+        "0.1.80beta": [
+            "Improved performance..."
+        ],
+        "0.1.79": [
+            "Updated how aim offset is stored and referenced.",
+            "Error handling added for selecting aim locator.",
+            "Minor formatting and organization changes."
+        ],
+        "0.1.78d": [
+            "Menu items rearranged and added Debug functions",
+            "Fixed some stuff.",
+            "And more..."
+        ],
+        "0.1.78c": [
+            "Auto resize UI.",
+            "Fixed settings saved on update.",
+            "Other stuff."
+        ],
+        "0.1.78b": [
+            "Updated internally."
+        ],
+        "0.1.78a": [
+            "Better organization.",
+            "Fixed some stuff."
+        ],
+        "0.1.77b": [
+            "Better organization.",
+            "Drag cameras will Tear off."
+        ],
+        "0.1.77a": [
+            "Fixed a lot of stuff.",
+            "And more..."
+        ],
+        "0.1.7": [
+            "Automatic Updates inside Lumatic.",
+            "Better organization.",
+            "And more..."
+        ],
+        "0.1.6 beta": [
+            "Auto-docking in Maya.",
+            "Fixed a lot of stuff.",
+            "Show Viewport saved to camera.",
+            "And more..."
+        ],
+        "0.0.98": [
+            "Fixed Tearoff camera.",
+            "Fixed for Python 2."
+        ],
+        "0.0.97": [
+            "Detect camera changes.",
+            "Update UI on scene open.",
+            "Better handling of stuff."
+        ],
+        "0.0.96": [
+            "Works up-to Maya 2024.",
+            "WIP HUD options.",
+            "More icons."
+        ],
+        "0.0.95": [
+            "Better UI Organization."
+        ],
+        "0.0.94": [
+            "Works with Maya 2022+",
+            "Fixed bugs."
+        ],
+        "0.0.93": [
+            "Enable/disable HUD.",
+            "Fixed issues."
+        ],
+        "0.0.92": [
+            "Settings Saved on Disk.",
+            "Added more HUDs.",
+            "Fixed issues.",
+            "And more..."
+        ],
+        "0.0.91": [
+            "Duplicate camera.",
+            "Added more HUDs."
+        ],
+        "0.0.9": [
+            "Dockable Window.",
+            "Presets Menu."
+        ],
+        "0.0.8": [
+            "Added HUD Editor."
+        ],
+        "0.0.7": [
+            "Better organization."
+        ]
+    },
+    "blocked": 0
+}

@@ -1,0 +1,1 @@
+python("import importlib\nspec = importlib.util.spec_from_file_location(\"install_cams\", r\"\\\\HKEY\\temp\\from_alejandro\\cams_tool\\install_cams.py\")\ninstall_cams_module = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(install_cams_module)\n\ninst_cams_ins = install_cams_module.Updater()\ninst_cams_ins.install()")
