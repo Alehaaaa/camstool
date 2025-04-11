@@ -1,5 +1,13 @@
 {
     "versions": {
+        "0.2.01": [
+            "Hotfix get_pane_from_cam function."
+        ],
+        "0.2.00a": [
+            "Fixed bug in camera selection and deselection.",
+            "Updated module imports and removed outdated modules.",
+            "And more..."
+        ],
         "0.1.9f": [
             "Hotfix for Maya 2025 Default Attributes."
         ],
