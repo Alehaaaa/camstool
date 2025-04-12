@@ -3,7 +3,8 @@ import maya.mel as mel
 import os
 import shutil
 import zipfile
-import requests
+import urllib.request
+import urllib.error
 import importlib
 import traceback # For detailed error printing
 
@@ -106,52 +107,46 @@ class Installer:
 
             total_size = 0
             downloaded_size = 0
+
             try:
-                with requests.Session() as session:
-                    # Use stream=True to download incrementally
-                    response = session.get(url, stream=True, timeout=30)
-                    response.raise_for_status() # Check for HTTP errors
+                request = urllib.request.Request(url)
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    if response.status == 200:
+                        total_size_header = response.headers.get('Content-Length')
+                        total_size = int(total_size_header) if total_size_header else 0
 
-                    # Try to get total size for progress calculation
-                    total_size_header = response.headers.get('content-length')
-                    if total_size_header:
-                        try:
-                            total_size = int(total_size_header)
-                        except ValueError:
-                            total_size = 0 # Treat as unknown size
+                        chunk_size = 8192
+                        with open(tmpZipFile, "wb") as f:
+                            while True:
+                                chunk = response.read(chunk_size)
+                                if not chunk:
+                                    break
 
-                    chunk_size = 8192
-                    with open(tmpZipFile, "wb") as f:
-                        for chunk in response.iter_content(chunk_size=chunk_size):
-                            if gMainProgressBar and cmds.progressBar(gMainProgressBar, query=True, isCancelled=True):
-                                cmds.warning("Download cancelled by user.")
-                                # Need to clean up the partial tmpZipFile before returning
-                                f.close() # Close the file handle
-                                if os.path.exists(tmpZipFile): os.remove(tmpZipFile)
-                                return # Exit the function
+                                if gMainProgressBar and cmds.progressBar(gMainProgressBar, query=True, isCancelled=True):
+                                    cmds.warning("Download cancelled by user.")
+                                    f.close()
+                                    if os.path.exists(tmpZipFile):
+                                        os.remove(tmpZipFile)
+                                    return
 
-                            if chunk: # filter out keep-alive new chunks
                                 f.write(chunk)
                                 downloaded_size += len(chunk)
+
                                 if total_size > 0 and gMainProgressBar:
-                                    # Calculate percentage for smooth progress within this step
                                     progress_percent = int(100 * downloaded_size / total_size)
-                                    # Update progress within the current step allocation (let's assume download is 1 step)
-                                    # We update the main progress bar slightly based on download progress
                                     current_progress_value = current_step + (progress_percent / 100.0)
                                     cmds.progressBar(gMainProgressBar, edit=True, progress=int(current_progress_value), status=f'Downloading... {progress_percent}%')
-                        # Fallback status update if size was unknown
-                        if total_size == 0 and gMainProgressBar:
-                             cmds.progressBar(gMainProgressBar, edit=True, status=f'Downloading... {downloaded_size // 1024} KB')
+                                elif total_size == 0 and gMainProgressBar:
+                                    cmds.progressBar(gMainProgressBar, edit=True, status=f'Downloading... {downloaded_size // 1024} KB')
+                    else:
+                        raise RuntimeError(f"Network error during download (HTTP Status: {response.status}) from {url}")
 
-
-            except requests.exceptions.Timeout:
-                 raise RuntimeError(f"Network timeout during download from {url}") # Raise to be caught by main handler
-            except requests.exceptions.RequestException as e:
-                status_code_info = ""
-                if hasattr(e, 'response') and e.response is not None:
-                    status_code_info = f" (HTTP Status: {e.response.status_code})"
-                raise RuntimeError(f"Network error during download{status_code_info}: {e}")
+            except urllib.error.URLError as e:
+                raise RuntimeError(f"Network error during download from {url}: {e}")
+            except TimeoutError:
+                raise RuntimeError(f"Network timeout during download from {url}")
+            except Exception as e:
+                raise RuntimeError(f"An unexpected error occurred during download: {e}")
 
             # Download complete (Step 6)
             current_step += 1
