@@ -1,5 +1,9 @@
 {
     "versions": {
+        "0.2.02b": [
+            "Fixed online update.",
+            "And more...]."
+        ],
         "0.2.02a": [
             "Added Open on GitHub Desktop action.",
             "Added release notes.",
