@@ -230,11 +230,10 @@ try:
         __import__(module_name)
         cams_module = sys.modules[module_name]
 
-    print(f"Deferred: Attempting to run {{module_name}}.show()")
-    cams_module.show()
+    cams_module.welcome()
     print("Deferred: Tool loaded successfully.")
-    final_message = "Tool successfully installed and loaded!"
-    cmds.inViewMessage(amg=final_message, pos="topCenter", fade=True, fts=12, bkc=0x008800) # Green background
+    final_message = "<hl>Cams</hl> Tool successfully installed and loaded!"
+    cmds.inViewMessage(amg=final_message, pos="midCenter", fade=True)
 
 except ImportError as e:
     print(f"Deferred Error: Could not import tool module '{{module_name}}': {{e}}")
@@ -243,10 +242,10 @@ except ImportError as e:
     final_message = f"Installation complete, but failed to import tool: {{module_name}}. See Script Editor."
     cmds.error(f"Failed to import tool: {{module_name}}. Check script editor for details.")
 except AttributeError as e:
-    print(f"Deferred Error: Could not find 'show' function in '{{module_name}}': {{e}}")
+    print(f"Deferred Error: Could not find 'welcome' function in '{{module_name}}': {{e}}")
     traceback.print_exc()
-    final_message = f"Installation complete, but failed to find 'show' function in tool: {{module_name}}."
-    cmds.error(f"Failed to find 'show' function in tool: {{module_name}}.")
+    final_message = f"Installation complete, but failed to find 'welcome' function in tool: {{module_name}}."
+    cmds.error(f"Failed to find 'welcome' function in tool: {{module_name}}.")
 except Exception as e:
     print(f"Deferred Error: An unexpected error occurred loading tool: {{e}}")
     traceback.print_exc()
