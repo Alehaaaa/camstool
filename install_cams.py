@@ -9,7 +9,7 @@ import traceback # For detailed error printing
 
 class Installer:
 
-    def install(self, tool='cams', url="https://raw.githubusercontent.com/Alehaaaa/camstool/main/aleha_tools-latest.zip"):
+    def install(self, tool='cams', url="https://raw.githubusercontent.com/Alehaaaa/camstool/main/versions/aleha_tools-latest.zip"):
         """
         Downloads and installs the tool from the given URL using Maya's progress bar.
         Assumes the ZIP file contains a top-level 'aleha_tools' folder.
@@ -40,6 +40,15 @@ class Installer:
         else:
             print('Starting Installation...') # Fallback print
 
+        mayaPath = os.environ.get("MAYA_APP_DIR")
+        if not mayaPath or not os.path.isdir(mayaPath):
+            # Use cmds.warning for non-fatal issues if possible, error for fatal ones
+            cmds.error("Fatal: Could not determine MAYA_APP_DIR or path does not exist.")
+
+        scriptPath = os.path.join(mayaPath, "scripts")
+        toolsFolder = os.path.join(scriptPath, "aleha_tools")
+        tmpZipFile = os.path.join(scriptPath, "tmp_install_aleha_tools.zip")
+
         try: # Main try block for installation logic
             # --- Environment and Path Setup (Step 1) ---
             if gMainProgressBar and cmds.progressBar(gMainProgressBar, query=True, isCancelled=True): return # Check for cancellation
@@ -47,14 +56,6 @@ class Installer:
             if gMainProgressBar: cmds.progressBar(gMainProgressBar, edit=True, step=1, status='Checking Maya environment...')
             else: print('Checking Maya environment...')
 
-            mayaPath = os.environ.get("MAYA_APP_DIR")
-            if not mayaPath or not os.path.isdir(mayaPath):
-                # Use cmds.warning for non-fatal issues if possible, error for fatal ones
-                cmds.error("Fatal: Could not determine MAYA_APP_DIR or path does not exist.")
-
-            scriptPath = os.path.join(mayaPath, "scripts")
-            toolsFolder = os.path.join(scriptPath, "aleha_tools")
-            tmpZipFile = os.path.join(scriptPath, "tmp_install_aleha_tools.zip")
 
             # --- Clean up old specific files (Step 2) ---
             if gMainProgressBar and cmds.progressBar(gMainProgressBar, query=True, isCancelled=True): return
