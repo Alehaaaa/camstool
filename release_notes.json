@@ -1,5 +1,10 @@
 {
     "versions": {
+        "0.2.02": [
+            "Improved workspace control visibility.",
+            "Refactored showWindow method.",
+            "And more..."
+        ],
         "0.2.01": [
             "Hotfix get_pane_from_cam function."
         ],
