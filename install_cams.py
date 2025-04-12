@@ -260,7 +260,7 @@ except Exception as e:
 """, lowestPriority=True)
 
 
-            # Step 11: Installing userScript
+            '''# Step 11: Installing userScript
             userSetupFile = os.path.join(scriptPath, "userSetup.py")
             newUserSetup = ""
             startCode, endCode = "# start Cams", "# end Cams"
@@ -290,7 +290,7 @@ except Exception as e:
 
             # Write the updated userSetup file
             with open(userSetupFile, 'w') as output_file:
-                output_file.write(newUserSetup)
+                output_file.write(newUserSetup)'''
 
 
             # Step 11: Installation process finished (loading deferred)

@@ -1,5 +1,11 @@
 {
     "versions": {
+        "0.2.02a": [
+            "Added Open on GitHub Desktop action.",
+            "Added release notes.",
+            "Updated version number.",
+            "And more..."
+        ],
         "0.2.02": [
             "Improved workspace control visibility.",
             "Refactored showWindow method.",
