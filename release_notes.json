@@ -1,5 +1,9 @@
 {
     "versions": {
+        "0.2.02c": [
+            "Fixed path issues.",
+            "And more..."
+        ],
         "0.2.02b": [
             "Fixed online update.",
             "And more...]."
