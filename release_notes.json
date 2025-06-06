@@ -1,5 +1,12 @@
 {
     "versions": {
+        "0.2.03b": [
+            "Fixed PyQt version imports.",
+            "Spaceswitch: Settings saved.",
+            "Spaceswitch: auto-stop timer for auto-close.",
+            "Spaceswitch: frameless window popup.",
+            "And more..."
+        ],
         "0.2.03": [
             "Fixed imports",
             "Updates for spaceswitch",
