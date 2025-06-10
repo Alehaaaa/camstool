@@ -1,5 +1,10 @@
 {
     "versions": {
+        "0.2.04b": [
+            "Added best Rotate Order to Spaceswitch.",
+            "Fixed issues and updates.",
+            "And more..."
+        ],
         "0.2.03b": [
             "Fixed PyQt version imports.",
             "Spaceswitch: Settings saved.",
