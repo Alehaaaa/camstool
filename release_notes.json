@@ -1,5 +1,8 @@
 {
     "versions": {
+        "0.2.04d": [
+            "Hotfix for Spaceswitch."
+        ],
         "0.2.04c": [
             "Fixed Euler Filter for Spaceswitch.",
             "Hotfix for Cams resizing."
