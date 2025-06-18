@@ -1,5 +1,13 @@
 {
     "versions": {
+        "0.2.05beta": [
+            "Update shelf tab method."
+        ],
+        "0.2.04e": [
+            "Spaceswitch: RotateOrder always applied to all frames.",
+            "Spaceswitch: fix refresh method.",
+            "And more..."
+        ],
         "0.2.04d": [
             "Hotfix for Spaceswitch."
         ],
