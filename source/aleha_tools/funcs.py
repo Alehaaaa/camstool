@@ -17,6 +17,9 @@ try:
     from PySide6.QtGui import QVector2D  # type: ignore
 
     from shiboken6 import wrapInstance  # type: ignore
+
+    long = int
+
 except ImportError:
     from PySide2.QtWidgets import (
         QWidget,
@@ -495,22 +498,34 @@ def delete_maya_UI(ui=None):
         pass
 
 
+def force_kill_scriptJobs():
+    for j in cmds.scriptJob(listJobs=True):
+        if "aleha_tools.cams" in j:
+            if ":" not in j:
+                continue
+            _id = int(j.split(":")[0])
+            cmds.scriptJob(kill=int(_id))
+
+
 def close_all_Windows(ui="CamsWorkspaceControl"):
-    ui_widget = omui.MQtUtil.findControl(ui)
-    if ui_widget:
+    pointer = omui.MQtUtil.findControl(ui)
+    if pointer:
         try:
-            ui_widget.kill_all_scriptJobs()
-            ui_widget.close()
-            ui_widget.deleteLater()
+            widget = wrapInstance(long(pointer), QWidget)
+            if widget:
+                widget.close()
+                widget.deleteLater()
         except Exception:
             pass
 
     for window_ui in ["MultiCams", ui]:
-        if cmds.workspaceControl(window_ui, exists=True):
-            try:
+        try:
+            if cmds.workspaceControl(window_ui, exists=True):
                 delete_maya_UI(window_ui)
-            except Exception:
-                pass
+        except Exception:
+            pass
+
+    force_kill_scriptJobs()
 
 
 def close_UI(ui, confirm=True):
@@ -559,7 +574,7 @@ def close_UI(ui, confirm=True):
                     )
             else:
                 return
-    close_all_Windows(ui)
+    close_all_Windows(ui.objectName())
 
 
 # Open Tools

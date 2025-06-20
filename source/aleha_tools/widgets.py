@@ -219,7 +219,7 @@ class OpenMenu(QMenu):
             else:
                 super(OpenMenu, self).mouseReleaseEvent(e)
         except Exception:
-            super(OpenMenu, self).mouseReleaseEvent(e)
+            pass
 
 
 """

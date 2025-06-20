@@ -818,8 +818,8 @@ class SpaceSwitchDialog(QDialog):
             if "aleha_tools.spaceswitch" in j:
                 if ":" not in j:
                     continue
-                id = int(j.split(":")[0])
-                cmds.scriptJob(kill=int(id))
+                _id = int(j.split(":")[0])
+                cmds.scriptJob(kill=int(_id))
 
     # ────────────────────────────────────────────────────────────────
     def _check_mouse_distance(self) -> None:

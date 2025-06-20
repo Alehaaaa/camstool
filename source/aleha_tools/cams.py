@@ -752,11 +752,6 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
         self.version_bar.addSeparator()
 
-        self.debug_menu = self.version_bar.addMenu(
-            QIcon(util.return_icon_path("debug")), "Debug Functions"
-        )
-        self.debug_menu.aboutToShow.connect(self.open_debug_bar)
-
         force_update = self.version_bar.addAction(
             QIcon(util.return_icon_path("updates")), "Force Install Update"
         )
@@ -777,12 +772,25 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
         self.open_release_notes.triggered.connect(self.open_release_notes_function)
 
-    def open_debug_bar(self):
+        self.create_debug_bar()
+
+    def create_debug_bar(self):
         """Handles opening and resizing the debug bar in Maya."""
         from . import debug  # Importing the debug module
 
         reload(debug)
-        debug.on_show(self.debug_menu)  # Populate the debug menu
+
+        if hasattr(self, "debug_menu"):
+            try:
+                self.version_bar.removeAction(self.debug_menu.menuAction())
+                self.debug_menu.deleteLater()
+            except RuntimeError:
+                print("Debug menu was already deleted.")
+
+        self.debug_menu = self.version_bar.addMenu(
+            QIcon(util.return_icon_path("debug")), "Debug Functions"
+        )
+        self.debug_menu.aboutToShow.connect(lambda self=self: debug.on_show(self))
 
     def open_release_notes_function(self):
         notes_path = r"\\hkey\temp\from_alejandro\cams_tool\release_notes.json"  # funcs.get_release_notes_path()

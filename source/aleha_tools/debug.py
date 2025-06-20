@@ -3,9 +3,10 @@ import maya.cmds as cmds
 from importlib import reload
 
 # Attempt to import PySide2, fallback to PySide6 if unavailable
+
 try:
-    from PySide6.QtWidgets import QAction, QMainWindow, QWidget  # type: ignore
-    from PySide6.QtGui import QIcon  # type: ignore
+    from PySide6.QtWidgets import QMainWindow, QWidget  # type: ignore
+    from PySide6.QtGui import QIcon, QAction  # type: ignore
 except ImportError:
     from PySide2.QtWidgets import QAction, QMainWindow, QWidget
     from PySide2.QtGui import QIcon
@@ -20,12 +21,13 @@ reload(funcs)
 reload(util)
 
 
-def on_show(menu):
+def on_show(self):
+    menu = self.debug_menu
     """Populates the debug menu with debugging tools."""
-    if menu is None or menu.isVisible() is False:
+    if menu is None or not hasattr(menu, "clear"):
         return
 
-    menu.clear()  # Clear existing actions to prevent duplication
+    menu.clear()
 
     debug_tools = [
         ("Print Widget Hierarchy", print_widget_hierarchy),
