@@ -15,10 +15,13 @@ TO-DO:
 
 DATA = {
     "TOOL": "cams",
-    "VERSION": "0.2.05beta",
+    "VERSION": "0.2.06beta",
     "AUTHOR": {
         "name": "Alehaaa",
         "website": "https://alehaaaa.github.io",
         "instagram": "https://www.instagram.com/alejandro_anim/",
     },
 }
+
+
+

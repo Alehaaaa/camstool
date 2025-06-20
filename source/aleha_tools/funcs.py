@@ -485,7 +485,9 @@ def tear_off_cam(cam):
     return tear_off_window
 
 
-def delete_maya_UI(ui="CamsWorkspaceControl"):
+def delete_maya_UI(ui=None):
+    if not ui:
+        return
     try:
         cmds.deleteUI(ui)
         cmds.workspaceControl(ui, e=True, close=True)
@@ -493,19 +495,22 @@ def delete_maya_UI(ui="CamsWorkspaceControl"):
         pass
 
 
-def close_all_Windows(ui):
-    for window_ui in ["MultiCams", ui.workspace_control_name]:
+def close_all_Windows(ui="CamsWorkspaceControl"):
+    ui_widget = omui.MQtUtil.findControl(ui)
+    if ui_widget:
+        try:
+            ui_widget.kill_all_scriptJobs()
+            ui_widget.close()
+            ui_widget.deleteLater()
+        except Exception:
+            pass
+
+    for window_ui in ["MultiCams", ui]:
         if cmds.workspaceControl(window_ui, exists=True):
             try:
                 delete_maya_UI(window_ui)
             except Exception:
                 pass
-    try:
-        ui.kill_all_scriptJobs()
-        ui.close()
-        ui.deleteLater()
-    except Exception:
-        pass
 
 
 def close_UI(ui, confirm=True):

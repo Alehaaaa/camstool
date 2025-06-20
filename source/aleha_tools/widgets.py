@@ -1,6 +1,3 @@
-from functools import partial
-
-
 try:
     from PySide6.QtWidgets import (  # type: ignore
         QWidget,
@@ -95,6 +92,8 @@ except ImportError:
 
 import maya.cmds as cmds
 import base64
+
+from functools import partial
 
 from .util import (
     DPI,
@@ -298,14 +297,14 @@ class HoverButton(QPushButton):
 
     def _setup_icons(self):
         icon_map = {
-            "default": f"{self.cam_type}.png",
-            "select": "select.png",
-            "deselect": "deselect.png",
-            "duplicate": "duplicate.png",
-            "rename": "rename.png",
-            "remove": "remove.png",
-            "tearoff": "tear_off.png",
-            "attributes": "attributes.png",
+            "default": f"{self.cam_type}",
+            "select": "select",
+            "deselect": "deselect",
+            "duplicate": "duplicate",
+            "rename": "rename",
+            "remove": "remove",
+            "tearoff": "tear_off",
+            "attributes": "attributes",
         }
         self.icons = {k: QIcon(return_icon_path(v)) for k, v in icon_map.items()}
         self.setIcon(self.icons["default"])
@@ -631,7 +630,7 @@ class HoverButton(QPushButton):
         offset_attr = f"{self.camera}.cams_aim_offset"
         if cmds.objExists(offset_attr):
             menu.addAction(
-                QIcon(return_icon_path("aim.png")),
+                QIcon(return_icon_path("aim")),
                 "Position Aim",
                 partial(self._position_aim_offset, offset_attr),
             )
@@ -738,7 +737,7 @@ class HoverButton(QPushButton):
 
     def _add_defaults_action(self, menu):
         menu.addAction(
-            QIcon(return_icon_path("default.png")),
+            QIcon(return_icon_path("default")),
             "Apply Defaults",
             partial(self.parentUI.apply_camera_default, self.camera, self),
         )
@@ -1097,7 +1096,7 @@ class Attributes(QDialog):
         lock_btn.setToolTip("Break connection")
         lock_btn.setStatusTip("Break connection")
 
-        lock_btn.setIcon(QIcon(return_icon_path("locked.png")))
+        lock_btn.setIcon(QIcon(return_icon_path("locked")))
         lock_btn.setFixedSize(DPI(15), DPI(15))
 
         return lock_btn

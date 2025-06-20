@@ -250,17 +250,17 @@ class HUDWindow(QDialog):
 
         menu_edit = menu_bar.addMenu("Edit")
         new_btn = menu_edit.addAction(
-            QIcon(util.return_icon_path("select.png")), "Create New"
+            QIcon(util.return_icon_path("select")), "Create New"
         )
         self.duplicate_btn = menu_edit.addAction(
-            QIcon(util.return_icon_path("duplicate.png")), "Duplicate"
+            QIcon(util.return_icon_path("duplicate")), "Duplicate"
         )
         menu_edit.addSeparator()
         self.reset_btn = menu_edit.addAction(
-            QIcon(util.return_icon_path("refresh.png")), "Reset Current"
+            QIcon(util.return_icon_path("refresh")), "Reset Current"
         )
         self.delete_btn = menu_edit.addAction(
-            QIcon(util.return_icon_path("remove.png")), "Delete Current"
+            QIcon(util.return_icon_path("remove")), "Delete Current"
         )
 
         new_btn.triggered.connect(lambda: self.new_preset())

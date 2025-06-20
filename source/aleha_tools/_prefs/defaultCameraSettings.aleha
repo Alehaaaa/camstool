@@ -1,0 +1,1 @@
+{'camera': ('persp', True), 'overscan': (2.0, False), 'near_clip': (0.95, True), 'far_clip': (10000.0, True), 'display_resolution': (1, True), 'mask_opacity': (0.8, True), 'mask_color': ([0.0, 0.0, 0.0], True)}

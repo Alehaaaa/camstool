@@ -1,5 +1,11 @@
 {
     "versions": {
+        "0.2.06beta": [
+            "Added actLikeMayaUIElement for shelf handle.",
+            "Fixed urlopen on MacOS.",
+            "Fixed PySide2 imports.",
+            "And more..."
+        ],
         "0.2.05beta": [
             "Update shelf tab method."
         ],

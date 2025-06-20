@@ -1,4 +1,5 @@
 import os
+import ssl
 import json
 import maya.cmds as cmds
 import urllib.request
@@ -8,12 +9,12 @@ from importlib import reload
 # from pprint import pprint
 
 from http.client import responses
-
-
 from . import funcs, util
 
 reload(funcs)
 reload(util)
+
+ssl_context = ssl._create_unverified_context()
 
 REPO = "https://raw.githubusercontent.com/Alehaaaa/camstool/main/"
 
@@ -28,7 +29,7 @@ def formatPath(path):
 
 
 def download(downloadUrl, saveFile):
-    response = urllib.request.urlopen(downloadUrl, timeout=60)
+    response = urllib.request.urlopen(downloadUrl, context=ssl_context, timeout=60)
 
     if response is None:
         cmds.warning("Error trying to install.")
@@ -147,7 +148,9 @@ def add_shelf_button(tool, command):
 def get_latest_version():
     current_version_url = REPO + "version"
     try:
-        with urllib.request.urlopen(current_version_url, timeout=30) as response:
+        with urllib.request.urlopen(
+            current_version_url, context=ssl_context, timeout=30
+        ) as response:
             if response.status != 200:
                 error_message = responses.get(response.status, "Unknown Error")
                 funcs.make_inViewMessage(
@@ -175,7 +178,9 @@ def get_latest_version():
 def _get_changelog():
     current_version_url = REPO + "release_notes.json"
     try:
-        with urllib.request.urlopen(current_version_url, timeout=30) as response:
+        with urllib.request.urlopen(
+            current_version_url, context=ssl_context, timeout=30
+        ) as response:
             if response.status == 200:
                 text = response.read().decode("utf-8")
                 if not text:

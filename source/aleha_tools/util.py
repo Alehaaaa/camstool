@@ -7,14 +7,14 @@ try:
     from PySide6.QtWidgets import (  # type: ignore
         QMainWindow,
     )
-    from shiboken6 import wrapInstance  # type: ignore
+    from shiboken6 import wrapInstance, isValid  # type: ignore
 
     long = int
 except ImportError:
     from PySide2.QtWidgets import (
         QMainWindow,
     )
-    from shiboken2 import wrapInstance
+    from shiboken2 import wrapInstance, isValid
 
 
 def DPI(val):
@@ -22,6 +22,8 @@ def DPI(val):
 
 
 def return_icon_path(icon):
+    if "." not in icon:
+        icon = icon + ".png"
     script_directory = os.path.dirname(__file__)
     return os.path.join(script_directory, "_icons", icon)
 
@@ -29,7 +31,7 @@ def return_icon_path(icon):
 def make_inViewMessage(message, icon="camera"):
     cmds.inViewMessage(
         amg='<div style="text-align:center"><img src='
-        + return_icon_path(icon + ".png")
+        + return_icon_path(icon)
         + ">\n"
         + message
         + "\n",
@@ -80,6 +82,16 @@ def get_python_version():
 
 def get_maya_qt(ptr=omui.MQtUtil.mainWindow(), qt=QMainWindow):
     return wrapInstance(long(ptr), qt)
+
+
+def is_valid_widget(widget, expected_type=None):
+    if widget is None:
+        return False
+    if expected_type is not None and not isinstance(widget, expected_type):
+        return False
+    if isValid(widget):
+        return True
+    return False
 
 
 def check_visible_layout(layout):
