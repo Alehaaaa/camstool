@@ -15,6 +15,8 @@ class CompileCams:
         if not cams_version:
             import aleha_tools  # type: ignore
 
+            importlib.reload(aleha_tools)
+
             cams_version = aleha_tools.DATA["VERSION"]
 
         self.cams_version = cams_version
