@@ -9,12 +9,13 @@ try:
     )
     from shiboken6 import wrapInstance, isValid  # type: ignore
 
-    long = int
 except ImportError:
     from PySide2.QtWidgets import (
         QMainWindow,
     )
     from shiboken2 import wrapInstance, isValid
+
+long = int
 
 
 def DPI(val):

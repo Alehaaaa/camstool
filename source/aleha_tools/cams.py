@@ -763,12 +763,13 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
         self.generate_release_notes.triggered.connect(funcs.changes_compiler)
 
-        self.open_github_desktop.triggered.connect(
-            partial(
-                os.startfile,
-                r"C:\Users\alejandro\AppData\Local\GitHubDesktop\GitHubDesktop.exe",
+        if sys.platform == "win32":
+            self.open_github_desktop.triggered.connect(
+                partial(
+                    os.startfile,
+                    r"C:\Users\alejandro\AppData\Local\GitHubDesktop\GitHubDesktop.exe",
+                )
             )
-        )
 
         self.open_release_notes.triggered.connect(self.open_release_notes_function)
 

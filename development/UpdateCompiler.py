@@ -2,6 +2,7 @@ import maya.cmds as cmds
 import maya.mel as mel
 
 import os
+import sys
 import json
 import zipfile
 import logging
@@ -99,7 +100,8 @@ class CompileCams:
             all_notes = _run_method(_load_module(path, name), cls, method)
 
             logging.info(f"Automatically made the changelog: {str(all_notes)}")
-            os.startfile(self.json_notes)
+            if sys.platform == "win32":
+                os.startfile(self.json_notes)
             """try:
                 pass
             except:
@@ -125,9 +127,10 @@ class CompileCams:
 
         self.zip_directory(self.source_path)
 
-        self.copy_all_files(self.source_path, os.path.join(self.saved_source_path, os.path.basename(self.source_path)))
-
-
+        self.copy_all_files(
+            self.source_path,
+            os.path.join(self.saved_source_path, os.path.basename(self.source_path)),
+        )
 
         logging.info(
             "Saved Version %s in: %s" % (self.cams_version, self.zip_destination_path)
@@ -158,7 +161,6 @@ class CompileCams:
         with open(json_file, "w") as file:
             json.dump(data, file, indent=4)
 
-
     def copy_all_files(self, source_path, saved_path):
         # Crear la carpeta de destino si no existe
         if not os.path.exists(saved_path):
@@ -174,7 +176,6 @@ class CompileCams:
                 if os.path.exists(dst):
                     shutil.rmtree(dst)
                 shutil.copytree(src, dst)
-
 
     def zip_directory(self, source_path):
         data_file = os.path.join(source_path, "__init__.py")

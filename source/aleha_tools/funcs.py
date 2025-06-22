@@ -18,7 +18,6 @@ try:
 
     from shiboken6 import wrapInstance  # type: ignore
 
-    long = int
 
 except ImportError:
     from PySide2.QtWidgets import (
@@ -36,6 +35,8 @@ except ImportError:
 import importlib
 
 from .util import DPI, get_maya_qt, get_python_version
+
+long = int
 
 
 def check_for_updates(ui, warning=True, force=False):

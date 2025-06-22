@@ -42,10 +42,10 @@ except ImportError:
     )
     from PySide2.QtGui import (
         QIcon,
-        QRegExp,
         QRegExpValidator,
     )
     from PySide2.QtCore import (
+        QRegExp,
         Qt,
     )
 
