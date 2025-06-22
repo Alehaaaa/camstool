@@ -81,6 +81,7 @@ class CompileCams:
                         f"No class '{cls_name}' in '{module.__name__}'"
                     )
 
+                # Remove os.path.dirname(__file__)
                 instance = getattr(module, cls_name)(*args)
 
                 if not hasattr(instance, method) or not callable(
@@ -91,13 +92,18 @@ class CompileCams:
                     )
                 return getattr(instance, method)()
 
-            path = (
-                r"\\HKEY\temp\from_alejandro\cams_tool\development\ChangesCompiler.py"
-            )
+            path = os.path.join(os.path.dirname(__file__), "ChangesCompiler.py")
             name = "generate_changes_cams"
             cls = "CamsToolUpdater"
             method = "run"
-            all_notes = _run_method(_load_module(path, name), cls, method)
+
+            all_notes = _run_method(
+                _load_module(path, name),
+                cls,
+                method,
+                self.source_path,
+                self.cams_version,
+            )
 
             logging.info(f"Automatically made the changelog: {str(all_notes)}")
             if sys.platform == "win32":
@@ -129,10 +135,10 @@ class CompileCams:
 
         self.zip_directory(self.source_path)
 
-        self.copy_all_files(
-            self.source_path,
-            os.path.join(self.saved_source_path, os.path.basename(self.source_path)),
-        )
+        # self.copy_all_files(
+        #     self.source_path,
+        #     os.path.join(self.saved_source_path, os.path.basename(self.source_path)),
+        # )
 
         logging.info(
             "Saved Version %s in: %s" % (self.cams_version, self.zip_destination_path)

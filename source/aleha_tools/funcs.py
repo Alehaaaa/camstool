@@ -624,7 +624,8 @@ def _run_method(module, cls_name, method="main", *args):
     if not hasattr(module, cls_name):
         raise AttributeError(f"No class '{cls_name}' in '{module.__name__}'")
 
-    instance = getattr(module, cls_name)(os.path.dirname(__file__), *args)
+    # Remove os.path.dirname(__file__)
+    instance = getattr(module, cls_name)(*args)
 
     if not hasattr(instance, method) or not callable(getattr(instance, method)):
         raise AttributeError(f"No callable method '{method}' in '{cls_name}'")
@@ -665,10 +666,7 @@ def compile_version():
         method = "main"
 
         source_path = os.path.dirname(__file__)
-        destination_path = os.path.join(
-            os.path.dirname(os.path.dirname(source_path)),
-            "versions",
-        )
+        destination_path = os.path.dirname(os.path.dirname(source_path))
 
         try:
             # Pass new_version as a positional argument

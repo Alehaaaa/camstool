@@ -13,7 +13,9 @@ class CamsToolUpdater:
             os.path.dirname(os.path.dirname(__file__)),
             "versions",
         )
-        self.script_folder = script_folder
+        self.script_folder = script_folder or os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "source", "aleha_tools"
+        )
 
         self.index = None
 
@@ -26,7 +28,10 @@ class CamsToolUpdater:
 
             self.cams_version = aleha_tools.DATA["VERSION"]
 
-        self.tmpFolder = os.path.join(os.environ["TEMP"], "cams_tmp")
+        self.tmpFolder = os.path.join(
+            os.environ.get("TEMP", os.environ.get("TMPDIR", os.path.dirname(__file__))),
+            "cams_tmp",
+        )
         self.tmpScriptFolder = os.path.join(self.tmpFolder, "aleha_tools")
         self.changes_folder = os.path.join(self.tmpFolder, "changes")
         self.base_url = "https://api.groq.com/openai/v1"
