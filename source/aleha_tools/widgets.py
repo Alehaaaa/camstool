@@ -66,7 +66,6 @@ except ImportError:
     from PySide2.QtGui import (
         QIcon,
         QPainter,
-        QRegExp,
         QRegExpValidator,
         QDoubleValidator,
         QPen,
@@ -80,6 +79,7 @@ except ImportError:
     )
     from PySide2.QtCore import (
         Qt,
+        QRegExp,
         QEvent,
         Signal,
         QPointF,
