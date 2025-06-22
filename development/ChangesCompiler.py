@@ -2,17 +2,18 @@ import difflib
 import os
 import shutil
 import zipfile
-import requests
+import requests  # type: ignore
 import json
 import re
 
 
 class CamsToolUpdater:
     def __init__(self, script_folder=None, cams_version=None):
-        self.versions_folder = r"\\HKEY\temp\from_alejandro\cams_tool\versions"
-        self.script_folder = script_folder or os.path.join(
-            os.environ["MAYA_APP_DIR"], "scripts", "aleha_tools"
+        self.versions_folder = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "versions",
         )
+        self.script_folder = script_folder
 
         self.index = None
 

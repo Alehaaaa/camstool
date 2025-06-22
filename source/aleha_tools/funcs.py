@@ -18,7 +18,6 @@ try:
 
     from shiboken6 import wrapInstance  # type: ignore
 
-    long = int
 
 except ImportError:
     from PySide2.QtWidgets import (
@@ -36,6 +35,8 @@ except ImportError:
 import importlib
 
 from .util import DPI, get_maya_qt, get_python_version
+
+long = int
 
 
 def check_for_updates(ui, warning=True, force=False):
@@ -654,14 +655,31 @@ def compile_version():
             cmds.warning("New version must be greater than current version.")
             return
 
-        path = r"\\HKEY\temp\from_alejandro\cams_tool\development\UpdateCompiler.py"
+        path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "development",
+            "UpdateCompiler.py",
+        )
         name = "compiler_cams"
         cls = "CompileCams"
         method = "main"
 
+        source_path = os.path.dirname(__file__)
+        destination_path = os.path.join(
+            os.path.dirname(os.path.dirname(source_path)),
+            "versions",
+        )
+
         try:
             # Pass new_version as a positional argument
-            _run_method(_load_module(path, name), cls, method, new_version)
+            _run_method(
+                _load_module(path, name),
+                cls,
+                method,
+                source_path,
+                destination_path,
+                new_version,
+            )
 
         except (ImportError, AttributeError) as e:
             print(f"Compile Error: {e}")
@@ -670,12 +688,26 @@ def compile_version():
 def changes_compiler():
     if not check_author():
         return
-    path = r"\\HKEY\temp\from_alejandro\cams_tool\development\ChangesCompiler.py"
+
+    import aleha_tools  # type: ignore
+
+    importlib.reload(aleha_tools)
+    local_version = aleha_tools.DATA.get("VERSION")
+
+    path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "development",
+        "ChangesCompiler.py",
+    )
     name = "generate_changes_cams"
     cls = "CamsToolUpdater"
     method = "run"
+
+    script_path = os.path.dirname(__file__)
     try:
-        changelog = _run_method(_load_module(path, name), cls, method)
+        changelog = _run_method(
+            _load_module(path, name), cls, method, script_path, local_version
+        )
         if changelog:
             cmds.confirmDialog(m="- " + "\n- ".join(changelog))
     except (ImportError, AttributeError) as e:

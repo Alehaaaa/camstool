@@ -2,6 +2,7 @@ import maya.cmds as cmds
 import maya.mel as mel
 
 import os
+import sys
 import json
 import zipfile
 import logging
@@ -10,7 +11,7 @@ import importlib
 
 
 class CompileCams:
-    def __init__(self, source_path, cams_version=None) -> None:
+    def __init__(self, source_path, destination_path, cams_version=None) -> None:
         if not cams_version:
             import aleha_tools  # type: ignore
 
@@ -19,7 +20,7 @@ class CompileCams:
         self.cams_version = cams_version
 
         self.source_path = source_path
-        self.destination = r"\\HKEY\temp\from_alejandro\cams_tool"
+        self.destination = destination_path
 
         self.saved_source_path = os.path.join(self.destination, "source")
 
@@ -28,7 +29,7 @@ class CompileCams:
             self.destination, "versions", self.zip_file % self.cams_version
         )
 
-        self.json_notes = r"\\HKEY\temp\from_alejandro\cams_tool\release_notes.json"
+        self.json_notes = os.path.join(destination_path, "release_notes.json")
 
     @staticmethod
     def create_progressbar(mainBar, filename):
@@ -99,7 +100,10 @@ class CompileCams:
             all_notes = _run_method(_load_module(path, name), cls, method)
 
             logging.info(f"Automatically made the changelog: {str(all_notes)}")
-            os.startfile(self.json_notes)
+            if sys.platform == "win32":
+                os.startfile(self.json_notes)
+            else:
+                os.system(f"open {self.json_notes}")
             """try:
                 pass
             except:
@@ -125,9 +129,10 @@ class CompileCams:
 
         self.zip_directory(self.source_path)
 
-        self.copy_all_files(self.source_path, os.path.join(self.saved_source_path, os.path.basename(self.source_path)))
-
-
+        self.copy_all_files(
+            self.source_path,
+            os.path.join(self.saved_source_path, os.path.basename(self.source_path)),
+        )
 
         logging.info(
             "Saved Version %s in: %s" % (self.cams_version, self.zip_destination_path)
@@ -158,7 +163,6 @@ class CompileCams:
         with open(json_file, "w") as file:
             json.dump(data, file, indent=4)
 
-
     def copy_all_files(self, source_path, saved_path):
         # Crear la carpeta de destino si no existe
         if not os.path.exists(saved_path):
@@ -174,7 +178,6 @@ class CompileCams:
                 if os.path.exists(dst):
                     shutil.rmtree(dst)
                 shutil.copytree(src, dst)
-
 
     def zip_directory(self, source_path):
         data_file = os.path.join(source_path, "__init__.py")

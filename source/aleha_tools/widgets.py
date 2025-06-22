@@ -66,7 +66,6 @@ except ImportError:
     from PySide2.QtGui import (
         QIcon,
         QPainter,
-        QRegExp,
         QRegExpValidator,
         QDoubleValidator,
         QPen,
@@ -82,6 +81,7 @@ except ImportError:
         Qt,
         QEvent,
         Signal,
+        QRegExp,
         QPointF,
         QPoint,
         QMimeData,
@@ -196,30 +196,29 @@ QMenu that doesn't close
 
 class OpenMenu(QMenu):
     def __init__(self, title=None, parent=None):
-        # If a title == provided, pass it to the QMenu constructor
-        if title is not None:
-            super(OpenMenu, self).__init__(title, parent)
-        else:
-            super(OpenMenu, self).__init__(parent)
+        super().__init__(title, parent) if title else super().__init__(parent)
 
-        # Close this menu when the parent == destroyed
         if parent and hasattr(parent, "destroyed"):
             parent.destroyed.connect(self.close)
 
+        self.triggered.connect(self._on_action_triggered)
+
+    def _on_action_triggered(self, action):
+        if isinstance(action, QWidgetAction):
+            return
+
     def mouseReleaseEvent(self, e):
-        action = self.activeAction()
-        try:
-            if isinstance(action, QWidgetAction):
-                return
-            elif action and action.isEnabled() and action.isCheckable():
+        action = self.actionAt(e.pos())
+        if action and action.isEnabled():
+            if action.isCheckable():
                 action.setEnabled(False)
-                super(OpenMenu, self).mouseReleaseEvent(e)
+                super().mouseReleaseEvent(e)
                 action.setEnabled(True)
                 action.trigger()
             else:
-                super(OpenMenu, self).mouseReleaseEvent(e)
-        except Exception:
-            pass
+                super().mouseReleaseEvent(e)
+        else:
+            super().mouseReleaseEvent(e)
 
 
 """
