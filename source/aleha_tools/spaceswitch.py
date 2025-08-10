@@ -50,6 +50,8 @@ except ImportError:
         QImage,
         QPixmap,
         QColor,
+        QFont,
+        QFontMetrics
     )
     from PySide2.QtCore import Qt, QPoint, QRectF, QSettings, QTimer, QEvent, QPointF
     from shiboken2 import wrapInstance, isValid
@@ -315,12 +317,19 @@ class SpaceSwitchDialog(QDialog):
 
     def create_widgets(self):
         self.selection_label = QLabel("No valid switches selected.")
-        self.selection_label.setStyleSheet(
-            "QLabel {background-color: #333333;border-radius: 3px;}"
-        )
+
+        # Nice cross-platform UI font, bold & bigger
+        font = QFont("Tahoma", 12)
+        self.selection_label.setFont(font)
+
         self.selection_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.selection_label.setFixedHeight(21)
+
+        # Size the label to fit the larger font comfortably
+        fm = QFontMetrics(font)
+        self.selection_label.setFixedHeight(fm.height() + 6)
+
         self.main_layout.insertWidget(0, self.selection_label)
+
 
     def create_connections(self):
         self.check_updates_action.triggered.connect(self.check_for_updates)
@@ -419,74 +428,98 @@ class SpaceSwitchDialog(QDialog):
     def getEnums(self):
         spaceswitch_enum_dictionary = {}
 
+        # Helper: fast check for any connection (incoming or outgoing) on an attribute plug
+        def _is_connected(node, attr):
+            plug = f"{node}.{attr}"
+            try:
+                # Fast boolean checks (faster than listConnections for simple yes/no)
+                if cmds.connectionInfo(plug, isDestination=True):
+                    return True
+                if cmds.connectionInfo(plug, isSource=True):
+                    return True
+                # Fallback (still fairly cheap) in case connectionInfo misses some cases
+                return bool(cmds.listConnections(plug, s=True, d=True, plugs=True) or [])
+            except Exception:
+                return False
+
         for object in self.object_selection:
             if object in spaceswitch_enum_dictionary.keys():
                 continue
 
-            locked = cmds.listAttr(object, cb=1) or []
-            animatable = cmds.listAnimatable(object)
-            if animatable:
-                orderedAttrs = [
-                    i.rsplit(".", 1)[-1] for i in animatable if i and i not in locked
-                ]
+            # Only user-defined attrs (excludes Maya defaults), but allow rotateOrder if requested
+            orderedAttrs = cmds.listAttr(object, ud=True) or []
+            if self.show_rotate_order and cmds.attributeQuery("rotateOrder", node=object, exists=True):
+                if "rotateOrder" not in orderedAttrs:
+                    orderedAttrs.append("rotateOrder")
 
-                if orderedAttrs:
-                    if self.show_rotate_order:
-                        orderedAttrs.extend(["rotateOrder"])
-                    for enum_attr in orderedAttrs:
-                        try:
-                            attrType = cmds.attributeQuery(
-                                enum_attr, node=object, attributeType=True
-                            )
-                        except Exception:
-                            continue
-                        if attrType == "enum":
-                            enum_values = cmds.attributeQuery(
-                                enum_attr, node=object, listEnum=True
-                            )[0].split(":")
-                            long_name = cmds.attributeQuery(
-                                enum_attr, node=object, niceName=True
-                            )
-                            if any(c.isalnum() for c in enum_values):
-                                if enum_attr not in spaceswitch_enum_dictionary.keys():
-                                    spaceswitch_enum_dictionary[enum_attr] = {
-                                        "objects": {},
-                                        "long": long_name,
-                                    }
-                                if (
-                                    object
-                                    not in spaceswitch_enum_dictionary[enum_attr].keys()
-                                ):
-                                    spaceswitch_enum_dictionary[enum_attr]["objects"][
-                                        object
-                                    ] = {"enum": [], "marked": [], "current": []}
-                                for value in enum_values:
-                                    spaceswitch_enum_dictionary[enum_attr]["objects"][
-                                        object
-                                    ]["enum"].append(value)
-                                keys = (
-                                    cmds.keyframe(
-                                        f"{object}.{enum_attr}",
-                                        query=True,
-                                        valueChange=True,
-                                    )
-                                    or []
-                                )
-                                spaceswitch_enum_dictionary[enum_attr]["objects"][
-                                    object
-                                ]["marked"] = list(set([int(x) for x in keys])) or [
-                                    cmds.getAttr(f"{object}.{enum_attr}")
-                                ]
-                                spaceswitch_enum_dictionary[enum_attr]["objects"][
-                                    object
-                                ]["current"] = cmds.getAttr(f"{object}.{enum_attr}")
+            if orderedAttrs:
+                for enum_attr in orderedAttrs:
+                    try:
+                        attrType = cmds.attributeQuery(enum_attr, node=object, attributeType=True)
+                    except Exception:
+                        continue
+                    if attrType != "enum":
+                        continue
 
-                        # Si es rotateOrder, analizamos gimbal
-                        if enum_attr == "rotateOrder" and self.show_rotate_order:
-                            gimbal_data = self.analyzer.analyze(object)
-                            spaceswitch_enum_dictionary[enum_attr]["objects"][object][
-                                "gimbal"
-                            ] = gimbal_data
+                    raw = cmds.attributeQuery(enum_attr, node=object, listEnum=True) or []
+                    if not raw:
+                        continue
+
+                    # Clean labels: strip '=NNN', trim, drop placeholders (no alphanumerics)
+                    enum_values_raw = raw[0].split(":")
+                    enum_values_clean = []
+                    for v in enum_values_raw:
+                        label = v.split("=", 1)[0].strip()
+                        if any(c.isalnum() for c in label):
+                            enum_values_clean.append(label)
+
+                    # Keep only enums with multiple meaningful options
+                    if len(set(enum_values_clean)) < 2:
+                        continue
+
+                    # Must be connected to something (incoming or outgoing)
+                    if not _is_connected(object, enum_attr):
+                        continue
+
+                    long_name = cmds.attributeQuery(enum_attr, node=object, niceName=True)
+
+                    if enum_attr not in spaceswitch_enum_dictionary.keys():
+                        spaceswitch_enum_dictionary[enum_attr] = {
+                            "objects": {},
+                            "long": long_name,
+                        }
+
+                    if object not in spaceswitch_enum_dictionary[enum_attr]["objects"].keys():
+                        spaceswitch_enum_dictionary[enum_attr]["objects"][object] = {
+                            "enum": [],
+                            "marked": [],
+                            "current": [],
+                        }
+
+                    # Save options
+                    spaceswitch_enum_dictionary[enum_attr]["objects"][object]["enum"].extend(enum_values_clean)
+
+                    # Keyed values and current
+                    keys = (
+                        cmds.keyframe(
+                            f"{object}.{enum_attr}",
+                            query=True,
+                            valueChange=True,
+                        )
+                        or []
+                    )
+                    spaceswitch_enum_dictionary[enum_attr]["objects"][object]["marked"] = (
+                        list(set(int(x) for x in keys))
+                        or [cmds.getAttr(f"{object}.{enum_attr}")]
+                    )
+                    spaceswitch_enum_dictionary[enum_attr]["objects"][object]["current"] = cmds.getAttr(
+                        f"{object}.{enum_attr}"
+                    )
+
+                    # If it's rotateOrder and requested, analyze gimbal
+                    if enum_attr == "rotateOrder" and self.show_rotate_order:
+                        gimbal_data = self.analyzer.analyze(object)
+                        spaceswitch_enum_dictionary[enum_attr]["objects"][object]["gimbal"] = gimbal_data
 
         return spaceswitch_enum_dictionary
 
