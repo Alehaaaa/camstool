@@ -1,25 +1,21 @@
-"""
+# Put this file in your scripts directory:
+# "%USERPROFILE%\Documents\maya\scripts"
+# 
+# or a speficic version:
+# "%USERPROFILE%\Documents\maya\####\scripts"
+# 
+# 
+# Run as a Dialog with:
+# 
+# import aleha_tools.spaceswitch as spaceswitch
+# spaceswitch.show()
+# 
+# 
+# Run as a Popup with:
+# 
+# import aleha_tools.spaceswitch as spaceswitch
+# spaceswitch.popup()
 
-Put this file in your scripts directory:
-"%USERPROFILE%\Documents\maya\scripts"
-
-or a speficic version:
-"%USERPROFILE%\Documents\maya\####\scripts"
-
-
-Run as a Dialog with:
-
-import aleha_tools.spaceswitch as spaceswitch
-spaceswitch.show()
-
-
-Run as a Popup with:
-
-import aleha_tools.spaceswitch as spaceswitch
-spaceswitch.popup()
-
-
-"""
 
 try:
     from PySide6.QtWidgets import *  # type: ignore  # noqa: F403
@@ -101,19 +97,17 @@ def popup(_frameless=True):
     SpaceSwitchManager.show(_frameless)
 
 
-def _instance_alive(widget: QWidget | None) -> bool:
-    """Comprueba que *widget* siga siendo un QWidget válido."""
+def _instance_alive(widget) -> bool:
     return widget is not None and isValid(widget)
 
 
 def _place_next_to_cursor(dlg: QDialog) -> None:
-    """Coloca el diálogo a la derecha del cursor, centrado verticalmente."""
     dlg.adjustSize()
     w, h = dlg.width(), dlg.height()
 
     cur_pos = QCursor.pos()
     screen = QGuiApplication.screenAt(cur_pos) or QGuiApplication.primaryScreen()
-    geom = screen.availableGeometry()  # respeta la barra de tareas
+    geom = screen.availableGeometry()
 
     x = max(geom.left(), min(cur_pos.x(), geom.right() - w))
     y = max(geom.top(), min(cur_pos.y() - h // 2, geom.bottom() - h))
@@ -156,12 +150,12 @@ class SpaceSwitchDialog(QDialog):
     """
     Messages:
     """
-
+    
     NO_INTERNET = "Could not establish a connection to the server."
     WORKING_ON_IT = "Still working on this feature!"
 
-    AUTO_CLOSE_DIST = 10  # píxeles – ajusta a tu gusto
-    AUTO_CLOSE_PERIOD = 300  # ms     – frecuencia de chequeo
+    AUTO_CLOSE_DIST = 10
+    AUTO_CLOSE_PERIOD = 300
 
     def __init__(self, frameless=False, parent=None):
         super(SpaceSwitchDialog, self).__init__(parent=get_maya_window())
@@ -848,7 +842,7 @@ class SpaceSwitchDialog(QDialog):
 
     def _kill_script_jobs(self):
         for j in cmds.scriptJob(listJobs=True):
-            if "aleha_tools.spaceswitch" in j:
+            if "SpaceSwitchDialog" in j:
                 if ":" not in j:
                     continue
                 _id = int(j.split(":")[0])
@@ -1126,7 +1120,3 @@ class Timeline(QWidget):
             self.deleteLater()
         except RuntimeError:
             pass
-
-
-if __name__ == "__main__":
-    SpaceSwitchDialog().showUI()
