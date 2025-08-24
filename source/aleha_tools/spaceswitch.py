@@ -80,7 +80,7 @@ class FlatButton(QPushButton):
         }}
     """
 
-    def __init__(self, text: str, color: str = "#ffffff", background: str = "#8e8e8e", icon_path: Optional[str] = None, border: Optional[int] = 8, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, text: str, color: str = "#ffffff", background: str = "#5D5D5D", icon_path: Optional[str] = None, border: Optional[int] = 8, parent: Optional[QWidget] = None) -> None:
         super().__init__(text, parent)
         self.setFlat(True)
         self.setCursor(Qt.PointingHandCursor)
@@ -92,10 +92,15 @@ class FlatButton(QPushButton):
             self.setIcon(QIcon(icon_path))
 
         # Generate slightly lighter/darker shades for hover/pressed states
-        base_background = int(background.lstrip('#'), 16)
-        r, g, b = (base_background >> 16) & 0xff, (base_background >> 8) & 0xff, base_background & 0xff
-        hover_background = f"#{min(r + 10, 255):02x}{min(g + 10, 255):02x}{min(b + 10, 255):02x}"
-        pressed_background = f"#{max(r - 10, 0):02x}{max(g - 10, 0):02x}{max(b - 10, 0):02x}"
+        if background != "#5D5D5D":
+            base_background = int(background.lstrip('#'), 16)
+            r, g, b = (base_background >> 16) & 0xff, (base_background >> 8) & 0xff, base_background & 0xff
+            hover_background = f"#{min(r + 10, 255):02x}{min(g + 10, 255):02x}{min(b + 10, 255):02x}"
+            pressed_background = f"#{max(r - 10, 0):02x}{max(g - 10, 0):02x}{max(b - 10, 0):02x}"
+        else:
+            hover_background = "#707070"
+            pressed_background = "#252525"
+
 
         self.setStyleSheet(self.STYLE_SHEET.format(
             color=color,
@@ -225,7 +230,8 @@ class FloatingWidget(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
         p.setPen(Qt.NoPen)
-        p.setBrush(self.palette().window())
+        p.setBrush(QColor("#333333"))
+        # p.setBrush(self.palette().window())
         p.drawPath(self._path())
 
     def setBottomBar(self, buttons_config: List[Dict[str, Any]] = [], closeButton: bool = True) -> None:
@@ -237,7 +243,7 @@ class FloatingWidget(QWidget):
         for config in buttons_config:
             btn = FlatButton(
                 text=config.get("name", "Button"),
-                background=config.get("background", "#ffffff"),
+                background=config.get("background", "#5D5D5D"),
                 icon_path=config.get("icon"),
                 border=self.BORDER_RADIUS
             )
@@ -250,7 +256,7 @@ class FloatingWidget(QWidget):
             margins = 8
 
         if closeButton:
-            close_btn = FlatButton("Close", background="#636363",
+            close_btn = FlatButton("Close", background="#5D5D5D",
                                    icon_path="/Users/aleha/Library/Preferences/Autodesk/maya/scripts/animBot/_resources/img/icons/dialog/close.png",
                                    border=self.BORDER_RADIUS)
             close_btn.clicked.connect(self.close)
@@ -708,20 +714,20 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         self.selection_label = QLabel("No switches for selection")
 
         # title style
-        title_font = QFont("Tahoma", 14, QFont.Bold)
-        selection_title.setFont(title_font)
+        # title_font = QFont("Tahoma", 14, QFont.Bold)
+        # selection_title.setFont
         selection_title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         selection_title.setContentsMargins(0, 0, 0, 0)
-        selection_title.setStyleSheet("margin:0; padding:0;")
-        selection_title.setFixedHeight(QFontMetrics(title_font).height())  # removed +6
+        selection_title.setStyleSheet("margin:0; padding:0; font-size:19px; font-weight:bold;")
+        # selection_title.setFixedHeight(QFontMetrics(title_font).height())  # removed +6
 
         # label style
-        label_font = QFont("Tahoma", 11.5)
-        self.selection_label.setFont(label_font)
-        self.selection_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.selection_label.setContentsMargins(0, 0, 0, 0)
-        self.selection_label.setStyleSheet("margin:0; padding:0;")
-        self.selection_label.setFixedHeight(QFontMetrics(label_font).height())  # removed +6
+        # label_font = QFont("Tahoma", 11.5)
+        # self.selection_label.setFont(label_font)
+        # self.selection_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        # self.selection_label.setContentsMargins(0, 0, 0, 0)
+        # self.selection_label.setStyleSheet("margin:0; padding:0;")
+        # self.selection_label.setFixedHeight(QFontMetrics(label_font).height())  # removed +6
 
         selection_layout.addWidget(selection_title)
         selection_layout.addWidget(self.selection_label)
