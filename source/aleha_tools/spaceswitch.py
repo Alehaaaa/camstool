@@ -32,11 +32,9 @@ from maya import OpenMayaUI as omui
 
 try:
     PYSIDE_VERSION = 2
-    from PySide2.QtCore import Qt, QTimer, QPoint, QRect, QEvent, QSize, QRectF, QPointF
-    from PySide2.QtGui import QCursor, QGuiApplication, QPainter, QPainterPath, QIcon, QPixmap, QImage, QColor, QPen, QBrush, QFontMetrics, QFont
-    from PySide2.QtWidgets import (
-        QWidget, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLayout, QMenu, QFrame, QSizePolicy, QSizeGrip, QMessageBox, QComboBox, QStyledItemDelegate
-    )
+    from PySide2.QtCore import *
+    from PySide2.QtGui import *
+    from PySide2.QtWidgets import *
     from PySide2.QtCore import QSettings
     from shiboken2 import wrapInstance, isValid
 except ImportError:
@@ -155,7 +153,7 @@ class FloatingWidget(QWidget):
     AUTO_CLOSE_DIST = 10
     AUTO_CLOSE_PERIOD_MS = 300
 
-    def __init__(self, mode: str = 'popup', parent: Optional[QWidget] = None) -> None:
+    def __init__(self, popup: bool = False, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent, Qt.Tool | Qt.FramelessWindowHint)
 
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -167,7 +165,7 @@ class FloatingWidget(QWidget):
 
         self._setup_ui()
 
-        self._timer_enabled = (mode == 'popup')
+        self._timer_enabled = (popup)
         self._timer_paused = False
         if self._timer_enabled:
             self._setup_timer()
@@ -523,7 +521,7 @@ class GimbalAnalyzer:
         }
 
     def radians_to_degrees(self, radians):
-        return radians * (180 / math.pi)
+        return radians * (180.0 / math.pi)
 
     def get_middle_axis_value(self, rotation):
         return {
@@ -542,36 +540,78 @@ class GimbalAnalyzer:
     def convert_order_string(self, s):
         return self.rotation_orders.get(s, om.MEulerRotation.kZYX)
 
-    def get_rotation(self, obj):
-        selectionList = om.MSelectionList()
-        selectionList.add(obj)
-        dagPath = selectionList.getDagPath(0)
+    def _safe_get_depend_node(self, sel_list, index=0):
+        """Supports API 2.0 and classic API calling styles."""
+        try:
+            # API 2.0
+            return sel_list.getDependNode(index)
+        except TypeError:
+            # Classic API signature: getDependNode(index, MObject)
+            mobj = om.MObject()
+            sel_list.getDependNode(index, mobj)  # type: ignore[arg-type]
+            return mobj
 
-        transform = om.MFnTransform(dagPath)
-        return transform.rotation()
+    def get_rotation(self, obj):
+        sel = om.MSelectionList()
+        sel.add(obj)
+        node = self._safe_get_depend_node(sel, 0)
+        tfm = om.MFnTransform(node)
+        return tfm.rotation()  # MEulerRotation (radians)
 
     def get_rotation_order_list(self, obj):
         if cmds.attributeQuery("rotateOrder", node=obj, exists=True):
-            return cmds.attributeQuery("rotateOrder", node=obj, listEnum=True)[0].split(
-                ":"
-            )
+            return cmds.attributeQuery("rotateOrder", node=obj, listEnum=True)[0].split(":")
         return []
 
+    def _rotation_at_time(self, obj, t, order_list):
+        """Get MEulerRotation at time t WITHOUT changing current time or UI."""
+        rx = cmds.getAttr(f"{obj}.rotateX", time=t)
+        ry = cmds.getAttr(f"{obj}.rotateY", time=t)
+        rz = cmds.getAttr(f"{obj}.rotateZ", time=t)
+        idx = int(cmds.getAttr(f"{obj}.rotateOrder", time=t))
+        idx = max(0, min(idx, len(order_list) - 1)) if order_list else 0
+        current_order_str = order_list[idx] if order_list else "xyz"
+
+        return om.MEulerRotation(
+            math.radians(rx or 0.0),
+            math.radians(ry or 0.0),
+            math.radians(rz or 0.0),
+            self.convert_order_string(current_order_str),
+        )
+
     def compute_all_percentages(self, obj, order_list):
-        rot = self.get_rotation(obj)
+        """
+        Worst-case gimbal % per order across ALL keyed frames (or current time if unkeyed),
+        without pausing OGS or touching the timeline.
+        """
+        key_times = set()
+        for attr in ("rotateX", "rotateY", "rotateZ"):
+            k = cmds.keyframe(obj, attribute=attr, query=True, timeChange=True)
+            if k:
+                key_times.update(k)
+        if not key_times:
+            key_times = {cmds.currentTime(query=True)}
+
+        key_times = sorted(key_times)
+
         percentages = []
-        for order_str in order_list:
-            reordered = om.MEulerRotation(rot.x, rot.y, rot.z)
-            reordered.reorderIt(self.convert_order_string(order_str))
-            percentages.append(self.compute_gimbal_percentage(reordered))
+        for target_order_str in order_list:
+            target_order = self.convert_order_string(target_order_str)
+            worst = 0
+            for t in key_times:
+                rot_t = self._rotation_at_time(obj, t, order_list)
+                # copy before reordering
+                reordered = om.MEulerRotation(rot_t.x, rot_t.y, rot_t.z, rot_t.order)
+                reordered.reorderIt(target_order)
+                g = self.compute_gimbal_percentage(reordered)
+                if g > worst:
+                    worst = g
+            percentages.append(worst)
         return percentages
 
     def classify_percentages(self, percentages):
         labels = [""] * len(percentages)
-        if not percentages:
-            return labels
-
-        if len(set(percentages)) == 1:
+        if not percentages or len(set(percentages)) == 1:
             return labels
 
         best = min(percentages)
@@ -586,6 +626,14 @@ class GimbalAnalyzer:
         return labels
 
     def analyze(self, obj):
+        """
+        Returns:
+          {
+            "xyz": {"percentage": 12, "label": "Good"},
+            "yzx": {"percentage": 10, "label": "Best"},
+            ...
+          }
+        """
         order_list = self.get_rotation_order_list(obj)
         if not order_list:
             return {}
@@ -598,8 +646,6 @@ class GimbalAnalyzer:
             result[order] = {"percentage": percentages[i], "label": labels[i]}
         return result
 
-
-
 class SpaceSwitchAlehaWidget(FloatingWidget):
     """
     Messages:
@@ -609,8 +655,8 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
     WORKING_ON_IT = "Still working on this feature!"
 
     """The main widget for the Space Switch tool, now with configurable modes."""
-    def __init__(self, mode: str = 'popup', parent: Optional[QWidget] = get_maya_window()) -> None:
-        super().__init__(mode=mode, parent=parent)
+    def __init__(self, popup: bool = False, parent: Optional[QWidget] = get_maya_window()) -> None:
+        super().__init__(popup=popup, parent=parent)
 
         self.setWindowTitle(f"{APPCONFIG.get('title')} {APPCONFIG.get('version')}")
 
@@ -628,7 +674,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         self.last_selection = []
 
 
-        if mode == 'window':
+        if popup == False:
             # In 'window' mode, show the configured bottom bar immediately.
             self.setBottomBar(closeButton=True)
 
@@ -1244,7 +1290,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
 class SpaceSwitchManager:
     """Manages the creation and display of the SpaceSwitchAlehaWidget instance."""
     @classmethod
-    def _launch(cls, mode: str) -> None:
+    def _launch(cls, popup: bool) -> None:
         dlg = _MAIN_DICT.get("_SPACESWITCH_INSTANCE")
         if dlg is not None and isValid(dlg):
             try:
@@ -1253,10 +1299,10 @@ class SpaceSwitchManager:
             finally: dlg = None
 
         if not (dlg is not None and isValid(dlg)):
-            dlg = SpaceSwitchAlehaWidget(mode=mode)
+            dlg = SpaceSwitchAlehaWidget(popup=popup)
             _MAIN_DICT["_SPACESWITCH_INSTANCE"] = dlg
 
-        if mode == 'popup':
+        if popup == True:
             dlg.place_near_cursor()
 
         if dlg.isHidden():
@@ -1269,12 +1315,12 @@ class SpaceSwitchManager:
     @classmethod
     def popup(cls) -> None:
         """Launches the tool as a temporary popup near the cursor with auto-close enabled."""
-        cls._launch(mode='popup')
+        cls._launch(popup=True)
 
     @classmethod
     def show(cls) -> None:
         """Launches the tool as a persistent window with the bottom bar visible."""
-        cls._launch(mode='window')
+        cls._launch(popup=False)
 
 
 
