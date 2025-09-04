@@ -112,6 +112,7 @@ class CompileCams:
                 os.startfile(self.json_notes)
             else:
                 os.system(f"open {self.json_notes}")
+
             """try:
                 pass
             except:
