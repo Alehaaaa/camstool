@@ -335,22 +335,26 @@ class FloatingWidget(QWidget):
         self._timer.start()
 
     def _enable_timer(self):
-        self._timer_enabled = True
-
-    def _pause_timer(self) -> None:
-        if self._timer_enabled and not self._timer_paused:
-            if hasattr(self, "_timer"): self._timer.stop()
-            self._timer_paused = True
+        if hasattr(self, "_timer"):
+            if self._timer is None:
+                return
+            self._timer.start()
+            self._timer_enabled = True
     
-    def _disable_timer(self):
-        self._timer_enabled = False
-        if hasattr(self, "_timer"): self._timer.stop()
-        self._timer_paused = True
+    def _pause_timer(self):
+        if hasattr(self, "_timer"):
+            if self._timer is None:
+                return
+            self._timer.stop()
+            self._timer_enabled = False
 
     def _disable_auto_kill(self) -> None:
-        self._timer_enabled = False
-        if hasattr(self, "_timer"): self._timer.stop()
-        self._timer_paused = False
+        if hasattr(self, "_timer"):
+            if self._timer is None:
+                return
+            self._timer.stop()
+            self._timer = None
+        self._timer_enabled = None
 
 
     def closeEvent(self, e: QEvent) -> None:
@@ -692,7 +696,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
     def _show_context_menu(self, pos):
         # context menu
         self.context_menu = QMenu(self)
-        self.context_menu.aboutToShow.connect(self._disable_timer)
+        self.context_menu.aboutToShow.connect(self._pause_timer)
         self.context_menu.aboutToHide.connect(self._enable_timer)
 
         self.toggle_namespaces_action = self.context_menu.addAction("Show namespaces")
@@ -812,7 +816,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
     
     # Main Function to Set the ComboBox
     def set_combobox(self, enum_objects):
-        combobox = AutoPauseComboBox(self._enable_timer, self._disable_timer, parent=self)
+        combobox = AutoPauseComboBox(self._pause_timer, self._enable_timer, parent=self)
         combobox.setMaxVisibleItems(60)
         combobox.setItemDelegate(RightIconDelegate(combobox))
 
