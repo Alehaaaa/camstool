@@ -47,6 +47,7 @@ except ImportError:
     from PySide2.QtCore import (
         QRegExp,
         Qt,
+        QRegExp,
     )
 
     QRegularExpression = QRegExp

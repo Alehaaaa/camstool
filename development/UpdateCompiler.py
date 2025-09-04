@@ -11,16 +11,18 @@ import importlib
 
 
 class CompileCams:
-    def __init__(self, source_path, cams_version=None) -> None:
+    def __init__(self, source_path, destination_path, cams_version=None) -> None:
         if not cams_version:
             import aleha_tools  # type: ignore
+
+            importlib.reload(aleha_tools)
 
             cams_version = aleha_tools.DATA["VERSION"]
 
         self.cams_version = cams_version
 
         self.source_path = source_path
-        self.destination = r"\\HKEY\temp\from_alejandro\cams_tool"
+        self.destination = destination_path
 
         self.saved_source_path = os.path.join(self.destination, "source")
 
@@ -29,7 +31,7 @@ class CompileCams:
             self.destination, "versions", self.zip_file % self.cams_version
         )
 
-        self.json_notes = r"\\HKEY\temp\from_alejandro\cams_tool\release_notes.json"
+        self.json_notes = os.path.join(destination_path, "release_notes.json")
 
     @staticmethod
     def create_progressbar(mainBar, filename):
@@ -81,6 +83,7 @@ class CompileCams:
                         f"No class '{cls_name}' in '{module.__name__}'"
                     )
 
+                # Remove os.path.dirname(__file__)
                 instance = getattr(module, cls_name)(*args)
 
                 if not hasattr(instance, method) or not callable(
@@ -91,17 +94,25 @@ class CompileCams:
                     )
                 return getattr(instance, method)()
 
-            path = (
-                r"\\HKEY\temp\from_alejandro\cams_tool\development\ChangesCompiler.py"
-            )
+            path = os.path.join(os.path.dirname(__file__), "ChangesCompiler.py")
             name = "generate_changes_cams"
             cls = "CamsToolUpdater"
             method = "run"
-            all_notes = _run_method(_load_module(path, name), cls, method)
+
+            all_notes = _run_method(
+                _load_module(path, name),
+                cls,
+                method,
+                self.source_path,
+                self.cams_version,
+            )
 
             logging.info(f"Automatically made the changelog: {str(all_notes)}")
             if sys.platform == "win32":
                 os.startfile(self.json_notes)
+            else:
+                os.system(f"open {self.json_notes}")
+
             """try:
                 pass
             except:
@@ -127,10 +138,10 @@ class CompileCams:
 
         self.zip_directory(self.source_path)
 
-        self.copy_all_files(
-            self.source_path,
-            os.path.join(self.saved_source_path, os.path.basename(self.source_path)),
-        )
+        # self.copy_all_files(
+        #     self.source_path,
+        #     os.path.join(self.saved_source_path, os.path.basename(self.source_path)),
+        # )
 
         logging.info(
             "Saved Version %s in: %s" % (self.cams_version, self.zip_destination_path)

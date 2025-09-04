@@ -624,7 +624,8 @@ def _run_method(module, cls_name, method="main", *args):
     if not hasattr(module, cls_name):
         raise AttributeError(f"No class '{cls_name}' in '{module.__name__}'")
 
-    instance = getattr(module, cls_name)(os.path.dirname(__file__), *args)
+    # Remove os.path.dirname(__file__)
+    instance = getattr(module, cls_name)(*args)
 
     if not hasattr(instance, method) or not callable(getattr(instance, method)):
         raise AttributeError(f"No callable method '{method}' in '{cls_name}'")
@@ -655,14 +656,28 @@ def compile_version():
             cmds.warning("New version must be greater than current version.")
             return
 
-        path = r"\\HKEY\temp\from_alejandro\cams_tool\development\UpdateCompiler.py"
+        path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "development",
+            "UpdateCompiler.py",
+        )
         name = "compiler_cams"
         cls = "CompileCams"
         method = "main"
 
+        source_path = os.path.dirname(__file__)
+        destination_path = os.path.dirname(os.path.dirname(source_path))
+
         try:
             # Pass new_version as a positional argument
-            _run_method(_load_module(path, name), cls, method, new_version)
+            _run_method(
+                _load_module(path, name),
+                cls,
+                method,
+                source_path,
+                destination_path,
+                new_version,
+            )
 
         except (ImportError, AttributeError) as e:
             print(f"Compile Error: {e}")
@@ -671,12 +686,26 @@ def compile_version():
 def changes_compiler():
     if not check_author():
         return
-    path = r"\\HKEY\temp\from_alejandro\cams_tool\development\ChangesCompiler.py"
+
+    import aleha_tools  # type: ignore
+
+    importlib.reload(aleha_tools)
+    local_version = aleha_tools.DATA.get("VERSION")
+
+    path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "development",
+        "ChangesCompiler.py",
+    )
     name = "generate_changes_cams"
     cls = "CamsToolUpdater"
     method = "run"
+
+    script_path = os.path.dirname(__file__)
     try:
-        changelog = _run_method(_load_module(path, name), cls, method)
+        changelog = _run_method(
+            _load_module(path, name), cls, method, script_path, local_version
+        )
         if changelog:
             cmds.confirmDialog(m="- " + "\n- ".join(changelog))
     except (ImportError, AttributeError) as e:

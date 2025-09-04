@@ -674,7 +674,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
         self.settings_btn.triggered.connect(self.settings)
         self.reload_btn.triggered.connect(self.reload_cams_UI)
-        self.close_btn.triggered.connect(partial(funcs.close_UI, self))
+        self.close_btn.triggered.connect(
+            partial(funcs.close_all_Windows, self.objectName())
+        )
 
         self.uninstall_btn.triggered.connect(partial(funcs.unistall, self))
 
