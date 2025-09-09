@@ -491,7 +491,7 @@ class Timeline(QWidget):
 
 APPCONFIG = {
     "title": "SpaceSwitch",
-    "version": "1.2.0beta",
+    "version": "1.2.2",
     "org_name": "Alehaaaa",
     "owner_user": "alejandro",
 }
@@ -1124,73 +1124,103 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         anim_curves = list(set(anim_curves))
         cmds.filterCurve(*anim_curves)
 
+
+    @staticmethod
+    def _collect_keyframes(targets, all_frames, timeline_selection, current_frames):
+        if not timeline_selection and not all_frames:
+            return targets, [cmds.currentTime(query=True)]
+
+        # Gather all keyframes across targets
+        all_keys = set(
+            sum([cmds.keyframe(t, query=True) or [] for t in targets], [])
+        )
+
+        keyframes = {
+            frame: [t for t in targets if frame in (cmds.keyframe(t, query=True) or [])]
+            for frame in sorted(all_keys)
+        }
+
+        # Restrict to timeline selection range if active
+        if timeline_selection:
+            keyframes = {
+                f: objs for f, objs in keyframes.items()
+                if current_frames[0] <= f <= current_frames[1]
+            }
+
+        return keyframes
+
+
     def apply_changes(self, enum_value, enum_attr, options_and_objects):
         all_frames_setting = self.all_frames
+
+        # Special case: rotateOrder always applies to all frames
         if enum_attr == "rotateOrder":
             if " " in enum_value.strip():
                 enum_value = enum_value.split(" ")[0]
-            # Ignore all_frames = False when using rotateOrder, apply always to all frames
             all_frames_setting = True
 
         targets = options_and_objects[enum_value]["objects"]
         enum_index = options_and_objects[enum_value]["index"]
 
         cmds.undoInfo(openChunk=True)
+        cmds.refresh(suspend=True)
         self._remove_callbacks()
 
-        cmds.refresh(suspend=True)
+        # Save temporary keys
+        temp_keyframes = {}
 
         timeline_selection = cmds.timeControl("timeControl1", q=True, rv=True)
         current_frames = cmds.timeControl("timeControl1", q=True, ra=True)
 
-        if not timeline_selection and not all_frames_setting:
-            targets_with_keys = targets
-            keyframes = current_frames
-        else:
-            keyframes = {
-                k: [t for t in targets if k in cmds.keyframe(t, query=True) or []]
-                for k in sorted(
-                    set(sum([cmds.keyframe(t, query=True) or [] for t in targets], []))
-                )
-            }
-            if timeline_selection:
-                keyframes = {
-                    k: v
-                    for k, v in keyframes.items()
-                    if current_frames[0] <= k <= current_frames[1]
-                }
-
-            targets_with_keys = list(
-                set([object for _list in keyframes.values() for object in _list])
-            )
-
-        sorted_targets_with_keys = sorted(
-            targets_with_keys, key=lambda x: x.count("|"), reverse=True
+        keyframes = self._collect_keyframes(
+            targets, all_frames_setting, timeline_selection, current_frames
         )
+
+        sorted_targets = sorted(targets, key=lambda x: x.count("|"), reverse=True)
+
         try:
-            # Check if there == a timeline selection.
-            if sorted_targets_with_keys:
-                if type(keyframes) is dict:
+            if sorted_targets:
+                # Case 1: dict → multiple frames
+                if isinstance(keyframes, dict) and keyframes:
                     self.multiple_frames(enum_attr, enum_index, keyframes)
-                elif type(keyframes) is list:
+
+                # Case 2: list → single frame
+                elif isinstance(keyframes, list) and keyframes:
                     cmds.currentTime(keyframes[0])
-                    for target in sorted_targets_with_keys:
+                    for target in sorted_targets:
                         self.do_xform(target, enum_attr, enum_index)
-            else:
-                for target in sorted_targets_with_keys:
-                    self.do_xform(target, enum_attr, enum_index)
+
+                # Case 3: no explicit keys → create temp key only if attr has none
+                else:
+                    current_time = cmds.currentTime(query=True)
+                    for target in sorted_targets:
+                        attr_plug = f"{target}.{enum_attr}"
+                        existing_keys = cmds.keyframe(attr_plug, query=True, keyframeCount=True) or 0
+
+                        if existing_keys == 0:
+                            temp_keyframes.setdefault(target, {}).setdefault(enum_attr, []).append(current_time)
+                            cmds.keyframe(attr_plug)
+
+                        self.do_xform(target, enum_attr, enum_index)
 
             if self.euler_filter:
-                self.apply_euler_filter(sorted_targets_with_keys)
+                self.apply_euler_filter(sorted_targets)
 
         finally:
             cmds.refresh(suspend=False)
+
+            # Remove temporary keys if created
+            for target, attributes in temp_keyframes.items():
+                for attr, keys in attributes.items():
+                    for frame in keys:
+                        cmds.cutKey(f"{target}.{attr}", time=(frame,))
+
             self._add_callbacks()
             self.refresh(force=True)
-
             cmds.undoInfo(closeChunk=True)
 
         cmds.showWindow("MayaWindow")
+
 
     # Check for Updates
     def check_for_updates(self, warning=True, *args):
