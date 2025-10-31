@@ -1,27 +1,29 @@
-# Put this file in your scripts directory:
-# "%USERPROFILE%\Documents\maya\scripts"
-# 
-# or a speficic version:
-# "%USERPROFILE%\Documents\maya\####\scripts"
-# 
-# 
-# Run as a Dialog with:
-# 
-# import aleha_tools.spaceswitch as spaceswitch
-# spaceswitch.show()
-# 
-# 
-# Run as a Popup with:
-# 
-# import aleha_tools.spaceswitch as spaceswitch
-# spaceswitch.popup()
+#  
+#  
+#  Copy this file in your scripts directory:
+#     %USERPROFILE%\Documents\maya\scripts
+#  
+#  or in a speficic version:
+#     %USERPROFILE%\Documents\maya\XXXX\scripts
+#  
+#  
+#  Run as a DIALOG with:
+#  
+#    import aleha_tools.spaceswitch as spaceswitch
+#    spaceswitch.show()
+#  
+#  
+#  Run as a POPUP with:
+#  
+#    import aleha_tools.spaceswitch as spaceswitch
+#    spaceswitch.popup()
+#  
+#  
 
 
 # -*- coding: utf-8 -*-
 from __future__ import annotations
-from functools import partial
 
-import os
 import sys
 import math
 from typing import Optional, List, Dict, Any
@@ -57,11 +59,11 @@ except ImportError:
 
 CONTEXTUAL_CURSOR = QCursor(QPixmap(":/rmbMenu.png"), hotX=11, hotY=8)
 _MAIN_DICT = sys.modules["__main__"].__dict__
+
+
 # =================================================================================
 # %% UI BASE CLASSES (MODULAR WRAPPER)
 # =================================================================================
-
-
 
 class IconBrightHover:
     @staticmethod
@@ -106,7 +108,9 @@ class IconBrightHover:
 
 
 class FlatButton(QPushButton):
-    """A customizable, flat-styled button for the bottom bar."""
+    """
+    A customizable, flat-styled button for the bottom bar.
+    """
     STYLE_SHEET = """
         QPushButton {{
             color: #ffffff;
@@ -134,7 +138,6 @@ class FlatButton(QPushButton):
             self.setIconSize(QSize(12, 12))
             IconBrightHover.apply(self, icon_path)
 
-        # Generate slightly lighter/darker shades for hover/pressed states
         if background != "#5D5D5D":
             base_background = int(background.lstrip('#'), 16)
             r, g, b = (base_background >> 16) & 0xff, (base_background >> 8) & 0xff, base_background & 0xff
@@ -155,7 +158,9 @@ class FlatButton(QPushButton):
 
 
 class BottomBar(QFrame):
-    """A container widget for arranging FlatButtons horizontally."""
+    """
+    A container widget for arranging FlatButtons horizontally.
+    """
     def __init__(self, buttons: List[QPushButton], margins: int = 8, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setFixedHeight(40)
@@ -171,7 +176,9 @@ class BottomBar(QFrame):
 
 
 class Grip(QSizeGrip):
-    """A custom QSizeGrip that signals the parent to pause auto-closing on resizing."""
+    """
+    A custom QSizeGrip that signals the parent to pause auto-closing on resizing.
+    """
     def __init__(self, parent) -> None:
         super().__init__(parent)
         self._parent_widget = parent
@@ -216,7 +223,9 @@ class FloatingWidget(QWidget):
             self._setup_timer()
 
     def _setup_ui(self) -> None:    
-        """Initializes the core layout and widgets for the floating panel."""
+        """
+        Initializes the core layout and widgets for the floating panel.
+        """
         self.parentLayout = QVBoxLayout(self)
         self.parentLayout.setContentsMargins(0, 0, 0, 0)
         self.parentLayout.setSpacing(0)
@@ -245,7 +254,9 @@ class FloatingWidget(QWidget):
         self.grip.setCursor(Qt.SizeBDiagCursor)
 
     def _path(self) -> QPainterPath:
-        """Creates the rounded rectangle shape, now with a corrected bottom-left corner."""
+        """
+        Creates the rounded rectangle shape, now with a corrected bottom-left corner.
+        """
         rect = self.rect().adjusted(0, 0, 1, -2)
         r = self.BORDER_RADIUS
         path = QPainterPath()
@@ -487,7 +498,7 @@ class TargetItemWidget(QWidget):
 class TargetsList(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.backing_store = []  # list of strings
+        self.backing_store = []
         self.setStyleSheet("""
             QListWidget:focus {
                 outline: none;
@@ -522,22 +533,17 @@ class TargetsList(QListWidget):
 class AutoPauseComboBox(QComboBox):
     """
     A ComboBox that pauses the auto-close timer when the popup is opened
-    and resumes it when it's closed (unless it has been permanently disabled
-    because the user moved the window).
     """
-
     def __init__(self, pause_cb, resume_cb, parent=None):
         super().__init__(parent)
         self._pause_cb = pause_cb
         self._resume_cb = resume_cb
 
-    # -- se ejecuta justo antes de que Qt cree y muestre el popup -----
     def showPopup(self):
         if callable(self._pause_cb):
             self._pause_cb()
         super().showPopup()
 
-    # -- se ejecuta cuando el popup desaparece ------------------------
     def hidePopup(self):
         super().hidePopup()
         if callable(self._resume_cb):
@@ -547,18 +553,18 @@ class AutoPauseComboBox(QComboBox):
 # Custom Delegate Class
 class RightIconDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
-        super().paint(painter, option, index)  # Draw default text
+        super().paint(painter, option, index)
 
-        if index.data(Qt.UserRole):  # Check if current option
+        if index.data(Qt.UserRole):
             painter.setRenderHint(QPainter.Antialiasing)
             painter.setBrush(QColor(255, 255, 255, 170))
             painter.setPen(Qt.NoPen)
 
-            size = 5  # Dot size
-            x = option.rect.right() - size * 2  # Position far right
-            y = option.rect.center().y() - size // 2  # Center vertically
+            dot_size = 5  # Dot size
+            x = option.rect.right() - dot_size * 2 
+            y = option.rect.center().y() - dot_size // 2
 
-            painter.drawEllipse(x, y, size, size)  # Draw round dot
+            painter.drawEllipse(x, y, dot_size, dot_size)
 
 
 class Timeline(QWidget):
@@ -577,24 +583,22 @@ class Timeline(QWidget):
             return
         super().__init__(parent)
 
-        self.timerange = timerange or [
-            int(f) for f in cmds.timeControl("timeControl1", ra=1, q=True)
-        ]
+        self.timerange = timerange or [int(f) for f in cmds.timeControl("timeControl1", ra=1, q=True)]
         if not self.timerange:
             return
 
-        self.color = QColor(*color, 70)  # Adding alpha internally
+        self.color = QColor(*color, 70)
 
         if parent:
             self.setGeometry(parent.rect())
             self.show()
 
             if autodestroy is not None:
-                # Set up a timer to remove the marker after a autodestroy
+                # Set up a timer to remove the marker
                 self.timer = QTimer(self)
                 self.timer.setSingleShot(True)
                 self.timer.timeout.connect(self.delete_marker)
-                self.timer.start(autodestroy)  # Remove after `autodestroy` milliseconds
+                self.timer.start(autodestroy)
 
     @classmethod
     def get_timeline(cls):
@@ -605,9 +609,7 @@ class Timeline(QWidget):
             or omui.MQtUtil.findLayout(tline)
             or omui.MQtUtil.findMenuItem(tline)
         )
-        if ptr:
-            return wrapInstance(int(ptr), QWidget)
-        return None
+        if ptr: return wrapInstance(int(ptr), QWidget)
 
     def paintEvent(self, event):
         """Handles painting the timeline marker on the playback slider."""
@@ -831,24 +833,19 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         self._create_selection_layout()
         self._add_callbacks()
 
-
         self.last_selection = []
 
-
         if popup == False:
-            # In 'window' mode, show the configured bottom bar immediately.
             self.setBottomBar(closeButton=True)
 
         self.refresh()
 
     def instance_settings(self):
-        self.namespace_display = self.settings.value(
-            "namespace_display", False, type=bool
-        )
-        self.all_frames = self.settings.value("all_frames", False, type=bool)
+        self.namespace_display = self.settings.value( "namespace_display", False, type=bool )
+        self.all_frames = self.settings.value( "all_frames", False, type=bool )
 
-        self.euler_filter = self.settings.value("euler_filter", True, type=bool)
-        self.show_rotate_order = True # self.settings.value("show_rotate_order", True, type=bool)
+        self.euler_filter = self.settings.value( "euler_filter", True, type=bool )
+        self.show_rotate_order = self.settings.value( "show_rotate_order", True, type=bool )
 
     def _show_context_menu(self, pos):
         # context menu
@@ -882,22 +879,13 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         self.credits_action = self.context_menu.addAction("Credits")
 
 
-
         self.check_updates_action.triggered.connect(self.check_for_updates)
         self.credits_action.triggered.connect(self.coffee)
 
-        self.show_rotate_order_action.toggled.connect(
-            lambda state: self.set_setting("show_rotate_order", state, True)
-        )
-        self.toggle_namespaces_action.toggled.connect(
-            lambda state: self.set_setting("namespace_display", state, True)
-        )
-        self.euler_filter_action.toggled.connect(
-            lambda state: self.set_setting("euler_filter", state)
-        )
-        self.all_frames_action.toggled.connect(
-            lambda state: self.set_setting("all_frames", state)
-        )
+        self.show_rotate_order_action.toggled.connect( lambda state: self.set_setting("show_rotate_order", state, True) )
+        self.toggle_namespaces_action.toggled.connect( lambda state: self.set_setting("namespace_display", state, True) )
+        self.euler_filter_action.toggled.connect( lambda state: self.set_setting("euler_filter", state) )
+        self.all_frames_action.toggled.connect( lambda state: self.set_setting("all_frames", state) )
 
         if PYSIDE_VERSION < 6:
             self.context_menu.exec_(QCursor.pos())
@@ -933,8 +921,9 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         try:
             self._cb.add(om.MEventMessage.addEventCallback("SelectionChanged", self.refresh))
             self._cb.add(om.MEventMessage.addEventCallback("timeChanged", self.refresh))
-            self._cb.add(om.MSceneMessage.addCallback(om.MSceneMessage.kAfterOpen, self._rebuild_callbacks))
             self._cb.add(om.MEventMessage.addEventCallback("Undo", self.refresh))
+            
+            self._cb.add(om.MSceneMessage.addCallback(om.MSceneMessage.kAfterOpen, self._refresh_callbacks))
         except Exception as e:
             cmds.warning(f"Could not add Maya callbacks: {e}")
     
@@ -944,10 +933,10 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         except Exception as e:
             cmds.warning(f"Could not remove Maya callbacks: {e}")
 
-
-    def _rebuild_callbacks(self, *args) -> None:
+    def _refresh_callbacks(self, *args) -> None:
         self._remove_callbacks()
         self._add_callbacks()
+
 
     def set_setting(self, setting, state, refresh=False):
         self.settings.setValue(setting, state)
@@ -966,16 +955,13 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         combobox.setItemDelegate(RightIconDelegate(combobox))
 
         seen = set()
-        marked = {
-            item for obj in enum_objects.values() for item in obj.get("marked", [])
-        }
-        currents = [obj.get("current") for obj in enum_objects.values()]
+        marked = { item for obj in enum_objects.values() for item in obj.get("marked", []) }
+        currents = [ obj.get("current") for obj in enum_objects.values() ]
 
         any_object = next(iter(enum_objects.values()), {})
         gimbal_info = any_object.get("gimbal", {})
 
         real_enum_values = []
-
         for i, enum_value in enumerate(
             [
                 enum
@@ -1016,16 +1002,11 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
     def getEnums(self):
         spaceswitch_enum_dictionary = {}
 
-        # Helper: fast check for any connection (incoming or outgoing) on an attribute plug
         def _is_connected(node, attr):
             plug = f"{node}.{attr}"
             try:
-                # Fast boolean checks (faster than listConnections for simple yes/no)
-                if cmds.connectionInfo(plug, isDestination=True):
+                if cmds.connectionInfo(plug, isDestination=True) or cmds.connectionInfo(plug, isSource=True):
                     return True
-                if cmds.connectionInfo(plug, isSource=True):
-                    return True
-                # Fallback (still fairly cheap) in case connectionInfo misses some cases
                 return bool(cmds.listConnections(plug, s=True, d=True, plugs=True) or [])
             except Exception:
                 return False
@@ -1088,21 +1069,9 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                     spaceswitch_enum_dictionary[enum_attr]["objects"][object]["enum"].extend(enum_values_clean)
 
                     # Keyed values and current
-                    keys = (
-                        cmds.keyframe(
-                            f"{object}.{enum_attr}",
-                            query=True,
-                            valueChange=True,
-                        )
-                        or []
-                    )
-                    spaceswitch_enum_dictionary[enum_attr]["objects"][object]["marked"] = (
-                        list(set(int(x) for x in keys))
-                        or [cmds.getAttr(f"{object}.{enum_attr}")]
-                    )
-                    spaceswitch_enum_dictionary[enum_attr]["objects"][object]["current"] = cmds.getAttr(
-                        f"{object}.{enum_attr}"
-                    )
+                    keys = cmds.keyframe( f"{object}.{enum_attr}", query=True, valueChange=True) or []
+                    spaceswitch_enum_dictionary[enum_attr]["objects"][object]["marked"] = ( list(set(int(x) for x in keys)) or [cmds.getAttr(f"{object}.{enum_attr}")] )
+                    spaceswitch_enum_dictionary[enum_attr]["objects"][object]["current"] = cmds.getAttr(f"{object}.{enum_attr}")
 
                     # If it's rotateOrder and requested, analyze gimbal
                     if enum_attr == "rotateOrder" and self.show_rotate_order:
@@ -1128,10 +1097,8 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                     if self.spaceswitch_enum_dictionary:
                         self.selection_label.setVisible(False)
 
-                        for (
-                            enum,
-                            enum_objects_current,
-                        ) in self.spaceswitch_enum_dictionary.items():
+                        for (enum, enum_objects_current,) in self.spaceswitch_enum_dictionary.items():
+
                             combobox_layout = QHBoxLayout()
                             unique_controls = list(
                                 set(enum_objects_current["objects"].keys())
@@ -1154,15 +1121,8 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                                 lambda pos, sender=control_target, data=enum_objects_current:
                                     self._show_change_target_dialog(sender, data)
                             )
-                            
 
-                            combobox_layout.addWidget(control_target)
-
-                            combobox = self.set_combobox(
-                                enum_objects_current["objects"]
-                            )
-                            combobox_layout.addWidget(combobox)
-
+                            combobox = self.set_combobox(enum_objects_current["objects"])
                             options_and_objects = {}
                             for obj, option in enum_objects_current["objects"].items():
                                 for i, o in enumerate(option["enum"]):
@@ -1171,12 +1131,12 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                                     options_and_objects[o]["objects"].append(obj)
                                     options_and_objects[o]["index"] = i
 
-                            combobox.textActivated.connect(
-                                lambda x,
-                                enum=enum,
-                                oo=options_and_objects: self.apply_changes(x, enum, oo)
-                            )
+                            combobox.textActivated.connect(lambda x, enum=enum, oo=options_and_objects: self.apply_changes(x, enum, oo))
+                            
+                            combobox_layout.addWidget(control_target)
+                            combobox_layout.addWidget(combobox)
                             self.enums_layout.insertLayout(0, combobox_layout)
+
             except Exception as e:
                 cmds.warning(f"Error adding buttons: {e}")
             # finally:
