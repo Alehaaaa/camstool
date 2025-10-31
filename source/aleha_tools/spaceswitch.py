@@ -19,6 +19,7 @@
 
 # -*- coding: utf-8 -*-
 from __future__ import annotations
+from functools import partial
 
 import os
 import sys
@@ -54,10 +55,54 @@ except ImportError:
     decodebytes = decodestring
 
 
+CONTEXTUAL_CURSOR = QCursor(QPixmap(":/rmbMenu.png"), hotX=11, hotY=8)
 _MAIN_DICT = sys.modules["__main__"].__dict__
 # =================================================================================
 # %% UI BASE CLASSES (MODULAR WRAPPER)
 # =================================================================================
+
+
+
+class IconBrightHover:
+    @staticmethod
+    def apply(btn, icon_path, brighten_amount=80):
+        btn._icon_normal = QIcon(icon_path)
+        btn._icon_hover  = IconBrightHover._brighten_icon(
+            btn._icon_normal,
+            brighten_amount,
+            btn.iconSize()
+        )
+
+        btn.setIcon(btn._icon_normal)
+
+        prev_enter = btn.enterEvent
+        prev_leave = btn.leaveEvent
+
+        def enterEvent(event):
+            btn.setIcon(btn._icon_hover)
+            return prev_enter(event)
+
+        def leaveEvent(event):
+            btn.setIcon(btn._icon_normal)
+            return prev_leave(event)
+
+        btn.enterEvent = enterEvent
+        btn.leaveEvent = leaveEvent
+
+    @staticmethod
+    def _brighten_icon(icon, amount, size):
+        pix = icon.pixmap(size)
+        img = pix.toImage()
+        for x in range(img.width()):
+            for y in range(img.height()):
+                c = img.pixelColor(x, y)
+                img.setPixelColor(x, y, QColor(
+                    min(c.red() + amount, 255),
+                    min(c.green() + amount, 255),
+                    min(c.blue() + amount, 255),
+                    c.alpha()
+                ))
+        return QIcon(QPixmap.fromImage(img))
 
 
 class FlatButton(QPushButton):
@@ -85,9 +130,9 @@ class FlatButton(QPushButton):
         self.setFixedHeight(32)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        if icon_path and os.path.exists(icon_path):
-            self.setIconSize(QSize(20, 20))
-            self.setIcon(QIcon(icon_path))
+        if icon_path:
+            self.setIconSize(QSize(12, 12))
+            IconBrightHover.apply(self, icon_path)
 
         # Generate slightly lighter/darker shades for hover/pressed states
         if background != "#5D5D5D":
@@ -127,7 +172,7 @@ class BottomBar(QFrame):
 
 class Grip(QSizeGrip):
     """A custom QSizeGrip that signals the parent to pause auto-closing on resizing."""
-    def __init__(self, parent: "FloatingWidget") -> None:
+    def __init__(self, parent) -> None:
         super().__init__(parent)
         self._parent_widget = parent
         self._start_geom: Optional[QRect] = None
@@ -205,7 +250,7 @@ class FloatingWidget(QWidget):
         r = self.BORDER_RADIUS
         path = QPainterPath()
         
-        # Start at top-left, after the radius arc
+        # Top-left, corner
         path.moveTo(rect.left() + r, rect.top())
         # Top-right corner (sharp)
         path.lineTo(rect.right(), rect.top())
@@ -248,24 +293,20 @@ class FloatingWidget(QWidget):
             if "callback" in config and callable(config["callback"]):
                 btn.clicked.connect(config["callback"])
             created_buttons.append(btn)
-        if not created_buttons:
-            margins = 0
-        else:
-            margins = 8
 
         if closeButton:
             close_btn = FlatButton("Close", background="#5D5D5D",
-                                   icon_path="/Users/aleha/Library/Preferences/Autodesk/maya/scripts/animBot/_resources/img/icons/dialog/close.png",
+                                   icon_path=":/closeIcon.svg",
                                    border=self.BORDER_RADIUS)
             close_btn.clicked.connect(self.close)
             created_buttons.append(close_btn)
         
-        if not created_buttons:
-            return
+        if created_buttons:
+            margins = 8 if created_buttons else 0
+            self.bottomBar = BottomBar(created_buttons, margins, self)
+            self.parentLayout.addWidget(self.bottomBar)
 
-        self.bottomBar = BottomBar(created_buttons, margins, self)
-        self.parentLayout.addWidget(self.bottomBar)
-        self._disable_auto_kill()
+            self._disable_auto_kill()
 
     def showBottomBar(self) -> None:
         """Disables auto-kill and adds a default close button if no bar exists."""
@@ -360,6 +401,122 @@ class FloatingWidget(QWidget):
     def closeEvent(self, e: QEvent) -> None:
         self._disable_auto_kill()
         super().closeEvent(e)
+
+
+class SetupTargetsDialog(FloatingWidget):
+    def __init__(self, parent, objects_dict, on_close):
+        super().__init__(popup=False, parent=parent)
+        self.on_close = on_close
+        
+        self.objects_dict = objects_dict
+        self._create_layouts()
+        self.setBottomBar([{"name": "Add", "callback": self._add_target, "icon": ":/more.png"}], closeButton=True)
+
+    def _add_target(self):
+        for obj in cmds.ls(selection=True):
+            self.targets_list.add_target(obj)
+
+    def _create_layouts(self):
+        title = QLabel("Xform targets")
+        title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        title.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 4px;")
+
+        self.targets_list = TargetsList(self)
+        self.targets_list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        for target in list(self.objects_dict.keys()):
+            self.targets_list.add_target(target)
+
+        self.mainLayout.addWidget(title)
+        self.mainLayout.addWidget(self.targets_list)
+
+    def closeEvent(self, event):
+        new_order = self.targets_list.backing_store
+
+        new_dict = {}
+        for t in new_order:
+            new_dict[t] = self.objects_dict.get(t) or list(self.objects_dict.values())[0]
+
+        self.objects_dict.clear()
+        self.objects_dict.update(new_dict)
+        
+        if callable(self.on_close):
+            self.on_close(self.objects_dict.keys())
+
+        super().closeEvent(event)
+
+
+class TargetItemWidget(QWidget):
+    def __init__(self, name, list_ref):
+        super().__init__()
+        self.name = name
+        self.list_ref = list_ref
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(2, 0, 2, 0)
+        layout.setSpacing(4)
+
+        label = QLabel(name.split(":")[-1])
+        close_btn = QPushButton()
+        IconBrightHover.apply(close_btn, ":/closeIcon.svg")
+
+        close_btn.setIconSize(QSize(10, 10))
+        close_btn.setFixedSize(15,15)
+        close_btn.setFocusPolicy(Qt.NoFocus)
+        close_btn.clicked.connect(self._remove)
+        close_btn.setStyleSheet("""
+            QPushButton {
+                border: none;
+                background: transparent;
+                padding: 0px;
+                margin: 0px;
+            }
+            QPushButton:pressed {
+                background: #101010;
+            }
+            """)
+
+        layout.addWidget(label)
+        layout.addStretch()
+        layout.addWidget(close_btn)
+
+    def _remove(self):
+        self.list_ref.remove_target(self.name)
+
+
+class TargetsList(QListWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.backing_store = []  # list of strings
+        self.setStyleSheet("""
+            QListWidget:focus {
+                outline: none;
+                border: none;
+        }
+        """)
+
+    def add_target(self, name):
+        if not cmds.objExists(name) or name in self.backing_store:
+            return
+            
+        self.backing_store.append(name)
+
+        item = QListWidgetItem()
+        item.setFlags(Qt.NoItemFlags)
+        widget = TargetItemWidget(name, self)
+
+        item.setSizeHint(widget.sizeHint())
+        self.addItem(item)
+        self.setItemWidget(item, widget)
+
+    def remove_target(self, name):
+        if name in self.backing_store:
+            self.backing_store.remove(name)
+
+        for i in range(self.count()):
+            if self.itemWidget(self.item(i)).name == name:
+                self.takeItem(i)
+                break
 
 
 class AutoPauseComboBox(QComboBox):
@@ -763,21 +920,9 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         selection_title = QLabel("Selection")
         self.selection_label = QLabel("No switches for selection")
 
-        # title style
-        # title_font = QFont("Tahoma", 14, QFont.Bold)
-        # selection_title.setFont
         selection_title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         selection_title.setContentsMargins(0, 0, 0, 0)
         selection_title.setStyleSheet("margin:0; padding:0; font-size:19px; font-weight:bold;")
-        # selection_title.setFixedHeight(QFontMetrics(title_font).height())  # removed +6
-
-        # label style
-        # label_font = QFont("Tahoma", 11.5)
-        # self.selection_label.setFont(label_font)
-        # self.selection_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        # self.selection_label.setContentsMargins(0, 0, 0, 0)
-        # self.selection_label.setStyleSheet("margin:0; padding:0;")
-        # self.selection_label.setFixedHeight(QFontMetrics(label_font).height())  # removed +6
 
         selection_layout.addWidget(selection_title)
         selection_layout.addWidget(self.selection_label)
@@ -1001,10 +1146,16 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                             else:
                                 combobox_name = f"({len(unique_controls)})"
 
-                            control_target = QLabel(
-                                "%s %s"
-                                % (combobox_name, enum_objects_current["long"].title())
+                            control_target = QLabel("%s %s" % (combobox_name, enum_objects_current["long"].title()))
+                            control_target.setCursor(CONTEXTUAL_CURSOR)
+                            control_target.setToolTip(self.formatXformTooltipObjects(enum_objects_current["objects"].keys()))
+                            control_target.setContextMenuPolicy(Qt.CustomContextMenu)
+                            control_target.customContextMenuRequested.connect(
+                                lambda pos, sender=control_target, data=enum_objects_current:
+                                    self._show_change_target_dialog(sender, data)
                             )
+                            
+
                             combobox_layout.addWidget(control_target)
 
                             combobox = self.set_combobox(
@@ -1030,6 +1181,30 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                 cmds.warning(f"Error adding buttons: {e}")
             # finally:
             #     self.resize(self.width(), self.sizeHint().height())
+
+    def _show_change_target_dialog(self, sender, data):
+        selection = self.getSelectedObj(long=False)
+
+        def on_close(objects):
+            cmds.select(selection, replace=True)
+            self._add_callbacks()
+            sender.setToolTip(self.formatXformTooltipObjects(objects))
+
+        objects_dict = data["objects"]
+        self._remove_callbacks()
+        dlg = SetupTargetsDialog(self, objects_dict, on_close=on_close)
+        dlg.show()
+
+
+    @staticmethod
+    def formatXformTooltipObjects(objects):
+        return ("<html>"
+        "Current xform target/s:<br>"
+        "%s"
+        "<br><br><b>Right-click to modify...</b>"
+        "</html>" 
+        % "<br>".join(objects))
+
 
     def clearlayout(self, layout):
         while layout.count():
