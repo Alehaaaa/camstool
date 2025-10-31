@@ -813,11 +813,12 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
     """
     Messages:
     """
-    
     NO_INTERNET = "Could not establish a connection to the server."
     WORKING_ON_IT = "Still working on this feature!"
 
-    """The main widget for the Space Switch tool, now with configurable modes."""
+    """
+    The main widget for the Space Switch tool, now with configurable modes.
+    """
     def __init__(self, popup: bool = False, parent: Optional[QWidget] = get_maya_window()) -> None:
         super().__init__(popup=popup, parent=parent)
 
@@ -848,7 +849,6 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         self.show_rotate_order = self.settings.value( "show_rotate_order", True, type=bool )
 
     def _show_context_menu(self, pos):
-        # context menu
         self.context_menu = QMenu(self)
         self.context_menu.aboutToShow.connect(self._pause_timer)
         self.context_menu.aboutToHide.connect(self._enable_timer)
@@ -882,8 +882,8 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         self.check_updates_action.triggered.connect(self.check_for_updates)
         self.credits_action.triggered.connect(self.coffee)
 
-        self.show_rotate_order_action.toggled.connect( lambda state: self.set_setting("show_rotate_order", state, True) )
-        self.toggle_namespaces_action.toggled.connect( lambda state: self.set_setting("namespace_display", state, True) )
+        self.show_rotate_order_action.toggled.connect( lambda state: self.set_setting("show_rotate_order", state, refresh=True) )
+        self.toggle_namespaces_action.toggled.connect( lambda state: self.set_setting("namespace_display", state, refresh=True) )
         self.euler_filter_action.toggled.connect( lambda state: self.set_setting("euler_filter", state) )
         self.all_frames_action.toggled.connect( lambda state: self.set_setting("all_frames", state) )
 
@@ -891,6 +891,14 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
             self.context_menu.exec_(QCursor.pos())
         else:
             self.context_menu.exec(QCursor.pos())
+
+    def set_setting(self, setting, state, refresh=False):
+        self.settings.setValue(setting, state)
+        setattr(self, setting, state)
+
+        if refresh:
+            self.refresh(force=True)
+
 
     def _create_layouts(self) -> None:
         # Main content widget that holds layouts
@@ -936,14 +944,6 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
     def _refresh_callbacks(self, *args) -> None:
         self._remove_callbacks()
         self._add_callbacks()
-
-
-    def set_setting(self, setting, state, refresh=False):
-        self.settings.setValue(setting, state)
-        setattr(self, setting, state)
-
-        if refresh:
-            self.refresh(force=True)
 
     def getSelectedObj(self, long=False):
         return cmds.ls(selection=True, long=long)
@@ -1436,8 +1436,8 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         credits_dialog.setWindowTitle("About")
         credits_dialog.setText(
             "Created by @" + APPCONFIG.get("owner_user") + "<br>"
-            # ' - <a href=https://www.instagram.com/alejandro_anim><font color="white">Instagram</a><br>'
-            'Visit my website - <a href=https://alehaaaa.github.io><font color="white">alehaaaa.github.io</a>'
+            'Website - <a href=https://alehaaaa.github.io><font color="white">alehaaaa.github.io</a><br>'
+            '<a href=https://www.linkedin.com/in/alejandro-martin-407527215><font color="white">Linkedin</a> - <a href=https://www.instagram.com/alejandro_anim><font color="white">Instagram</a>'
             "<br><br>"
             "If you liked this tool,<br>"
             "you can send me some love!"
@@ -1457,7 +1457,9 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
 
 
 class SpaceSwitchManager:
-    """Manages the creation and display of the SpaceSwitchAlehaWidget instance."""
+    """
+    Manages the creation and display of the SpaceSwitchAlehaWidget instance.
+    """
     @classmethod
     def _launch(cls, popup: bool) -> None:
         dlg = _MAIN_DICT.get("_SPACESWITCH_INSTANCE")
