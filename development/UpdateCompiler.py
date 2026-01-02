@@ -22,7 +22,7 @@ class CompileCams:
         self.cams_version = cams_version
 
         self.destination = "C:\\Users\\aleha\\Documents\\Programming\\GitHub\\camstool"
-        self.source_path = os.path.join(self.destination, "source")
+        self.source_path = os.path.join(self.destination, "source", "aleha_tools")
 
         self.zip_file = "aleha_tools-%s.zip"
         self.zip_destination_path = os.path.join(
