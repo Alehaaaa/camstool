@@ -539,15 +539,22 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         system_menu.setIcon(QIcon(util.return_icon_path("system")))
         system_menu.setTearOffEnabled(True)
 
+        self.startup_run_Cams_checkbox = system_menu.addAction("Run Cams on Startup")
+        self.startup_run_Cams_checkbox.setToolTip("Run Cams on Startup")
+        self.startup_run_Cams_checkbox.setStatusTip("Run Cams on Startup")
+        self.startup_run_Cams_checkbox.setCheckable(True)
+        self.startup_run_Cams_checkbox.setChecked(self.startup_run_cams)
+        self.startup_run_Cams_checkbox.triggered.connect(
+            lambda state=self.startup_run_Cams_checkbox.isChecked(): self.change_startup_run_cams(state)
+        )
+
         self.startup_Viewport_checkbox = system_menu.addAction("Viewport on Startup")
         self.startup_Viewport_checkbox.setToolTip("Apply Show settings to Viewports on Startup")
         self.startup_Viewport_checkbox.setStatusTip("Apply Show settings to Viewports on Startup")
         self.startup_Viewport_checkbox.setCheckable(True)
         self.startup_Viewport_checkbox.setChecked(self.startup_viewport)
         self.startup_Viewport_checkbox.triggered.connect(
-            lambda state=self.startup_Viewport_checkbox.isChecked(): self.process_prefs(
-                startup_viewport=state
-            )
+            lambda state=self.startup_Viewport_checkbox.isChecked(): self.change_startup_viewport(state)
         )
 
         self.startup_HUD_checkbox = system_menu.addAction("HUD on Startup")
@@ -600,6 +607,10 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
         menu_bar.setCornerWidget(self.dock_ui_btn)
         self.main_widget_layout.setMenuBar(menu_bar)
+
+    def change_startup_run_cams(self, state):
+        QTimer.singleShot(0, partial(funcs.install_userSetup, uninstall=not state))
+        self.process_prefs(startup_run_cams=state)
 
     def update_dock_menu(self):
         """Update the enabled state of dock buttons before the menu == shown"""
@@ -731,9 +742,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         self.debug_menu.aboutToShow.connect(lambda self=self: debug.on_show(self))
 
     def open_release_notes_function(self):
-        notes_path = (
-            r"\\hkey\temp\from_alejandro\cams_tool\release_notes.json"  # funcs.get_release_notes_path()
-        )
+        notes_path = r"C:\Users\aleha\Documents\Programming\GitHub\camstool\release_notes.json"  # funcs.get_release_notes_path()
         if notes_path:
             if sys.platform == "win32":
                 os.startfile(os.path.normpath(notes_path))
@@ -873,6 +882,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         position=None,
         startup_hud=None,
         startup_viewport=None,
+        startup_run_cams=None,
         skip_update=None,
         save=True,
         reset=False,
@@ -916,6 +926,8 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             self.startup_prefs["startup_hud"] = startup_hud
         if startup_viewport is not None:
             self.startup_prefs["startup_viewport"] = startup_viewport
+        if startup_run_cams is not None:
+            self.startup_prefs["startup_run_cams"] = startup_run_cams
         if skip_update is not None:
             self.startup_prefs["skip_update"] = skip_update
 
@@ -960,6 +972,12 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             self.startup_prefs.get("startup_hud")
             if isinstance(self.startup_prefs, dict) and self.startup_prefs.get("startup_hud") is not None
             else _initial_settings["startupSettings"]["startup_hud"]
+        )
+
+        self.startup_run_cams = (
+            self.startup_prefs.get("startup_run_cams")
+            if isinstance(self.startup_prefs, dict) and self.startup_prefs.get("startup_run_cams") is not None
+            else _initial_settings["startupSettings"]["startup_run_cams"]
         )
 
         self.startup_viewport = (

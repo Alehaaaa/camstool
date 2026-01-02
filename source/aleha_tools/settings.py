@@ -17,6 +17,7 @@ def initial_settings():
             "position": ["AttributeEditor", "top"],
             "startup_hud": False,
             "startup_viewport": True,
+            "startup_run_cams": True,
             "skip_update": False,
             "confirm_exit": True,
         },
@@ -57,9 +58,7 @@ def get_prefs_path(settings=True):
         settings = list(initial_settings().keys())
 
     # Move old preferences # Just remove them for now...
-    old_prefs_dir = os.path.join(
-        os.environ["MAYA_APP_DIR"], cmds.about(v=True), "prefs", "aleha_tools"
-    )
+    old_prefs_dir = os.path.join(os.environ["MAYA_APP_DIR"], cmds.about(v=True), "prefs", "aleha_tools")
     if os.path.exists(old_prefs_dir):
         shutil.rmtree(old_prefs_dir)
 
