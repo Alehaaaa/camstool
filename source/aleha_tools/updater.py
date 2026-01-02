@@ -115,10 +115,7 @@ def add_shelf_button(tool, command):
         buttons = cmds.shelfLayout(currentShelf, q=True, ca=True)
         if buttons:
             for b in buttons:
-                if (
-                    cmds.shelfButton(b, exists=True)
-                    and cmds.shelfButton(b, q=True, l=True) == tool
-                ):
+                if cmds.shelfButton(b, exists=True) and cmds.shelfButton(b, q=True, l=True) == tool:
                     return True
         return False
 
@@ -133,8 +130,7 @@ def add_shelf_button(tool, command):
                 tool + ".svg",
             ),
             label=tool,
-            c=command
-            or "import aleha_tools." + tool + " as " + tool + ";" + tool + ".show()",
+            c=command or "import aleha_tools." + tool + " as " + tool + ";" + tool + ".show()",
             annotation=tool.title() + " by Aleha",
         )
         cmds.confirmDialog(
@@ -148,14 +144,10 @@ def add_shelf_button(tool, command):
 def get_latest_version():
     current_version_url = REPO + "version"
     try:
-        with urllib.request.urlopen(
-            current_version_url, context=ssl_context, timeout=30
-        ) as response:
+        with urllib.request.urlopen(current_version_url, context=ssl_context, timeout=30) as response:
             if response.status != 200:
                 error_message = responses.get(response.status, "Unknown Error")
-                funcs.make_inViewMessage(
-                    NO_SERVER_ERROR % (response.status, error_message)
-                )
+                funcs.make_inViewMessage(NO_SERVER_ERROR % (response.status, error_message))
                 return None
 
             text = response.read().decode("utf-8")
@@ -178,9 +170,7 @@ def get_latest_version():
 def _get_changelog():
     current_version_url = REPO + "release_notes.json"
     try:
-        with urllib.request.urlopen(
-            current_version_url, context=ssl_context, timeout=30
-        ) as response:
+        with urllib.request.urlopen(current_version_url, context=ssl_context, timeout=30) as response:
             if response.status == 200:
                 text = response.read().decode("utf-8")
                 if not text:
@@ -191,9 +181,7 @@ def _get_changelog():
                 return data
             else:
                 error_message = responses.get(response.status, "Unknown Error")
-                funcs.make_inViewMessage(
-                    NO_SERVER_ERROR % (response.status, error_message)
-                )
+                funcs.make_inViewMessage(NO_SERVER_ERROR % (response.status, error_message))
                 return None
     except urllib.error.URLError as e:
         funcs.make_inViewMessage(f"Network error: {e}")
@@ -213,17 +201,13 @@ def _check_for_updates(ui, warning=True, force=False):
 
     if not force and installed_verion == latest_version:
         if warning:
-            funcs.make_inViewMessage(
-                "<hl>" + installed_verion + "</hl>\nYou are up-to-date."
-            )
+            funcs.make_inViewMessage("<hl>" + installed_verion + "</hl>\nYou are up-to-date.")
         return
 
     elif latest_version < installed_verion:
         if warning:
             funcs.make_inViewMessage(
-                "You are using an unpublished\nversion <hl>"
-                + installed_verion
-                + "</hl></div>"
+                "You are using an unpublished\nversion <hl>" + installed_verion + "</hl></div>"
             )
 
     else:
@@ -270,10 +254,11 @@ def _check_for_updates(ui, warning=True, force=False):
             )
             cmds.evalDeferred(reload_command)
 
-            funcs.make_inViewMessage(
-                "Update finished successfully\ncurrent version == now <hl>"
+            cmds.evalDeferred(
+                'from aleha_tools import funcs\nfuncs.make_inViewMessage("Update finished successfully<hl>'
                 + latest_version
-                + "</hl></div>"
+                + "</hl></div>)",
+                lowestPriority=True,
             )
             ui.process_prefs(skip_update=False)
 

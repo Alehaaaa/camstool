@@ -119,10 +119,7 @@ def unistall(ui):
         )
         if buttons:
             for b in buttons:
-                if (
-                    cmds.shelfButton(b, exists=True)
-                    and cmds.shelfButton(b, q=True, l=True) == ui.TOOL
-                ):
+                if cmds.shelfButton(b, exists=True) and cmds.shelfButton(b, q=True, l=True) == ui.TOOL:
                     cmds.deleteUI(b)
 
         close_UI(ui, confirm=False)
@@ -201,25 +198,15 @@ def display_menu_elements(commands=False):
         ),
     }
     if commands:
-        return {
-            item[1]: item[2] for values in menu_elements.values() for item in values
-        }
+        return {item[1]: item[2] for values in menu_elements.values() for item in values}
     return menu_elements
 
 
 def get_cam_display(cam_panels, command, plugin=False):
     if plugin:
-        run_command = (
-            "cmds.modelEditor('"
-            + cam_panels[-1]
-            + "', q=1, queryPluginObjects='"
-            + command
-            + "')"
-        )
+        run_command = "cmds.modelEditor('" + cam_panels[-1] + "', q=1, queryPluginObjects='" + command + "')"
     else:
-        run_command = (
-            "cmds.modelEditor('" + cam_panels[-1] + "', q=1, " + command + "=1 )"
-        )
+        run_command = "cmds.modelEditor('" + cam_panels[-1] + "', q=1, " + command + "=1 )"
     try:
         cleaned_run_command = "".join(c for c in run_command if c.isprintable())
         value = eval(cleaned_run_command)
@@ -263,9 +250,7 @@ def look_thru(cam, modelPane=None, ui=None):
     preferences = get_preferences_display(cam)
     if preferences:
         for command, plugin_switch in preferences.items():
-            plugin, switch = (
-                plugin_switch if type(plugin_switch) is tuple else (plugin_switch, 0)
-            )
+            plugin, switch = plugin_switch if type(plugin_switch) is tuple else (plugin_switch, 0)
             set_cam_display([modelPane], command, plugin=plugin, switch=switch)
 
 
@@ -318,9 +303,7 @@ def drag_insert_camera(camera, parent, pos):
         main_parent_widget = floating_window.parent().parent().parent().parent()
 
         # Set the initial position of the parent widget (floating window)
-        main_parent_widget.move(
-            cursor_x - main_parent_widget.geometry().width() / 2, cursor_y
-        )
+        main_parent_widget.move(cursor_x - main_parent_widget.geometry().width() / 2, cursor_y)
 
         main_parent_widget.raise_()
         main_parent_widget.activateWindow()  # Activates the window to gain focus
@@ -437,8 +420,7 @@ def delete_cam(cam, ui):
             None,
             "Delete " + cam,
             "Are you sure you want to delete " + cam + "?",
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.No,  # Uso de StandardButton
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,  # Uso de StandardButton
             QMessageBox.StandardButton.No,  # Botón por defecto
         )
 
@@ -451,9 +433,7 @@ def delete_cam(cam, ui):
 
                 if cmds.nodeType(delete_target) != "dagContainer":
                     try:
-                        delete_target = cmds.listRelatives(
-                            delete_target, allParents=True
-                        )[0]
+                        delete_target = cmds.listRelatives(delete_target, allParents=True)[0]
                     except Exception:
                         pass
             else:
@@ -542,10 +522,7 @@ def close_UI(ui, confirm=True):
                 return False
             else:
                 for b in buttons:
-                    if (
-                        cmds.shelfButton(b, exists=True)
-                        and cmds.shelfButton(b, q=True, l=True) == tool
-                    ):
+                    if cmds.shelfButton(b, exists=True) and cmds.shelfButton(b, q=True, l=True) == tool:
                         return True
             return False
 
@@ -656,11 +633,7 @@ def compile_version():
             cmds.warning("New version must be greater than current version.")
             return
 
-        path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "development",
-            "UpdateCompiler.py",
-        )
+        path = "C:\\Users\\aleha\\Documents\\Programming\\GitHub\\camstool\\development\\UpdateCompiler.py"
         name = "compiler_cams"
         cls = "CompileCams"
         method = "main"
@@ -692,20 +665,14 @@ def changes_compiler():
     importlib.reload(aleha_tools)
     local_version = aleha_tools.DATA.get("VERSION")
 
-    path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-        "development",
-        "ChangesCompiler.py",
-    )
+    path = "C:\\Users\\aleha\\Documents\\Programming\\GitHub\\camstool\\development\\ChangesCompiler.py"
     name = "generate_changes_cams"
     cls = "CamsToolUpdater"
     method = "run"
 
     script_path = os.path.dirname(__file__)
     try:
-        changelog = _run_method(
-            _load_module(path, name), cls, method, script_path, local_version
-        )
+        changelog = _run_method(_load_module(path, name), cls, method, script_path, local_version)
         if changelog:
             cmds.confirmDialog(m="- " + "\n- ".join(changelog))
     except (ImportError, AttributeError) as e:

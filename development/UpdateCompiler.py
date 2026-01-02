@@ -21,17 +21,15 @@ class CompileCams:
 
         self.cams_version = cams_version
 
-        self.source_path = source_path
-        self.destination = destination_path
-
-        self.saved_source_path = os.path.join(self.destination, "source")
+        self.destination = "C:\\Users\\aleha\\Documents\\Programming\\GitHub\\camstool"
+        self.source_path = os.path.join(self.destination, "source")
 
         self.zip_file = "aleha_tools-%s.zip"
         self.zip_destination_path = os.path.join(
             self.destination, "versions", self.zip_file % self.cams_version
         )
 
-        self.json_notes = os.path.join(destination_path, "release_notes.json")
+        self.json_notes = os.path.join(self.destination, "release_notes.json")
 
     @staticmethod
     def create_progressbar(mainBar, filename):
@@ -79,19 +77,13 @@ class CompileCams:
 
             def _run_method(module, cls_name, method="main", *args):
                 if not hasattr(module, cls_name):
-                    raise AttributeError(
-                        f"No class '{cls_name}' in '{module.__name__}'"
-                    )
+                    raise AttributeError(f"No class '{cls_name}' in '{module.__name__}'")
 
                 # Remove os.path.dirname(__file__)
                 instance = getattr(module, cls_name)(*args)
 
-                if not hasattr(instance, method) or not callable(
-                    getattr(instance, method)
-                ):
-                    raise AttributeError(
-                        f"No callable method '{method}' in '{cls_name}'"
-                    )
+                if not hasattr(instance, method) or not callable(getattr(instance, method)):
+                    raise AttributeError(f"No callable method '{method}' in '{cls_name}'")
                 return getattr(instance, method)()
 
             path = os.path.join(os.path.dirname(__file__), "ChangesCompiler.py")
@@ -138,14 +130,7 @@ class CompileCams:
 
         self.zip_directory(self.source_path)
 
-        # self.copy_all_files(
-        #     self.source_path,
-        #     os.path.join(self.saved_source_path, os.path.basename(self.source_path)),
-        # )
-
-        logging.info(
-            "Saved Version %s in: %s" % (self.cams_version, self.zip_destination_path)
-        )
+        logging.info("Saved Version %s in: %s" % (self.cams_version, self.zip_destination_path))
 
         cmds.evalDeferred(
             lambda: "from importlib import reload;import aleha_tools.cams as cams;reload(cams); cams.show()",
@@ -164,9 +149,7 @@ class CompileCams:
 
         data["versions"][version] = notes
 
-        ordered_versions = sorted(
-            data["versions"].items(), key=lambda x: x[0], reverse=True
-        )
+        ordered_versions = sorted(data["versions"].items(), key=lambda x: x[0], reverse=True)
         data["versions"] = dict(ordered_versions)
 
         with open(json_file, "w") as file:
@@ -198,19 +181,14 @@ class CompileCams:
                 newData = ""
                 for line in data.split("\n"):
                     if version_match in line:
-                        line = (
-                            line.split(version_match)[0]
-                            + f"'VERSION': '{self.cams_version}',"
-                        )
+                        line = line.split(version_match)[0] + f"'VERSION': '{self.cams_version}',"
                     newData += line + "\n"
             with open(data_file, "w") as file:
                 file.write(newData)
 
         mainBar = mel.eval("$tmp = $gMainProgressBar")
 
-        with zipfile.ZipFile(
-            self.zip_destination_path, "w", zipfile.ZIP_DEFLATED
-        ) as zipf:
+        with zipfile.ZipFile(self.zip_destination_path, "w", zipfile.ZIP_DEFLATED) as zipf:
             for root, dirs, files in os.walk(source_path):
                 for ex in ("_prefs", "__pycache__"):
                     if ex in dirs:
@@ -225,9 +203,7 @@ class CompileCams:
         with open(os.path.join(self.destination, "version"), "w") as f:
             f.write(self.cams_version)
 
-        latest_path = os.path.join(
-            self.destination, "versions", self.zip_file % "latest"
-        )
+        latest_path = os.path.join(self.destination, "versions", self.zip_file % "latest")
         if os.path.isfile(latest_path):
             os.remove(latest_path)
         shutil.copy(self.zip_destination_path, latest_path)

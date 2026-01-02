@@ -79,7 +79,6 @@ except ImportError:
     )
     from PySide2.QtCore import (
         Qt,
-        QRegExp,
         QEvent,
         Signal,
         QRegExp,
