@@ -685,7 +685,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             local_version = aleha_tools.DATA.get("VERSION")
 
             online_version = updater.get_latest_version()
-            if online_version < local_version:
+            if online_version > local_version:
                 version = "Update needed\nLocal (%s)\nOnline (%s)" % (
                     local_version,
                     online_version,
