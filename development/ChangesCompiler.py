@@ -38,7 +38,28 @@ class CamsToolUpdater:
         self.changes_folder = self.tmpFolder / "changes"
 
         self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
-        self.api_key = "AIzaSyA_3C28FIJIpsZfndPLllwUDoQeetvwFlc"
+
+        # Manually load .env file to identify GEMINI_API_KEY without dotenv module
+        env_path = Path(__file__).resolve().parent / ".env"
+        if env_path.exists():
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if "=" in line:
+                        key, value = line.split("=", 1)
+                        if key.strip() == "GEMINI_API_KEY":
+                            value = value.strip()
+                            # Handle quotes
+                            if (value.startswith('"') and value.endswith('"')) or (
+                                value.startswith("'") and value.endswith("'")
+                            ):
+                                value = value[1:-1]
+                            os.environ["GEMINI_API_KEY"] = value
+                            break
+
+        self.api_key = os.environ.get("GEMINI_API_KEY")
         self.model = "gemini-1.5-flash"
         self.all_changes = {}
 
@@ -52,6 +73,9 @@ class CamsToolUpdater:
             return None
 
     def complete_chat(self, message):
+        if not self.api_key:
+            return False, "API key not found"
+
         url = f"{self.base_url}/{self.model}:generateContent"
         headers = {
             "Content-Type": "application/json",
@@ -62,10 +86,9 @@ class CamsToolUpdater:
         try:
             response = requests.post(url, json=payload, headers=headers)
             response.raise_for_status()
-            return self._gemini_parse(response.json())
-        except requests.exceptions.RequestException as e:
-            print(f"API Request Failed: {e}")
-            return None
+            return True, self._gemini_parse(response.json())
+        except Exception as e:
+            return False, f"API Request Failed: {e}"
 
     def download_latest_version(self):
         if self.tmpFolder.exists():
@@ -162,10 +185,10 @@ class CamsToolUpdater:
         with open(gpt_log_file, "w", encoding="utf-8") as gpt_log:
             gpt_log.write(prompt + "\n\n\n\n")
 
-        response = self.complete_chat(prompt)
+        success, response = self.complete_chat(prompt)
 
-        if response is None:
-            return ["API request failed."]
+        if not success:
+            return [response]
 
         with open(gpt_log_file, "a", encoding="utf-8") as gpt_log:
             gpt_log.write(response)
