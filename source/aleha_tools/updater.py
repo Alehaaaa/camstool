@@ -1,31 +1,32 @@
 import os
 import ssl
 import json
-import maya.cmds as cmds
+import shutil
+import zipfile
 import urllib.request
 import urllib.error
+from pathlib import Path
+from http.client import responses
 from importlib import reload
 
-# from pprint import pprint
+import maya.cmds as cmds
+import maya.mel as mel
 
-from http.client import responses
 from . import funcs, util
 
-reload(funcs)
-reload(util)
+# Constants
+REPO = "https://raw.githubusercontent.com/Alehaaaa/camstool/main/"
+NO_DATA_ERROR = "<hl>No Data</hl>\nCould not sync with the server."
+NO_SERVER_ERROR = "<hl>%s %s</hl>\nCould not sync with the server."
 
+# SSL Context
 unverified_ssl_context = ssl.create_default_context()
 unverified_ssl_context.check_hostname = False
 unverified_ssl_context.verify_mode = ssl.CERT_NONE
 
-REPO = "https://raw.githubusercontent.com/Alehaaaa/camstool/main/"
-
-NO_DATA_ERROR = "<hl>No Data</hl>\nCould not sync with the server."
-NO_SERVER_ERROR = "<hl>%s %s</hl>\nCould not sync with the server."
-
 
 def formatPath(path):
-    path = path.replace("/", os.sep)
+    path = str(path).replace("/", os.sep)
     path = path.replace("\\", os.sep)
     return path
 
@@ -37,30 +38,26 @@ def download(downloadUrl, saveFile):
         cmds.warning("Error trying to install.")
         return
 
-    output = open(saveFile, "wb")
-    output.write(response.read())
-    output.close()
-    return output
+    with open(saveFile, "wb") as output:
+        output.write(response.read())
+
+    return True
 
 
 def install(tool, command=None, file_path=None):
-    import os
-    import shutil
-    import zipfile
+    scriptPath = Path(os.environ["MAYA_APP_DIR"]) / "scripts"
+    tmpZipFile = scriptPath / "tmp.zip"
 
-    scriptPath = os.path.join(util.get_root_path(), "source")
-    tmpZipFile = os.path.join(scriptPath, "tmp.zip")
-
-    if os.path.isfile(tmpZipFile):
-        os.remove(tmpZipFile)
+    if tmpZipFile.is_file():
+        tmpZipFile.unlink()
 
     if file_path:
-        output = shutil.copy(file_path, tmpZipFile)
+        shutil.copy(file_path, tmpZipFile)
     else:
         FileUrl = REPO + "/versions/aleha_tools-latest.zip"
-        output = download(FileUrl, tmpZipFile)
+        download(FileUrl, tmpZipFile)
 
-    if not os.path.isfile(tmpZipFile):
+    if not tmpZipFile.is_file():
         return cmds.error("Error trying to install.")
 
     zfobj = zipfile.ZipFile(tmpZipFile)
@@ -69,36 +66,34 @@ def install(tool, command=None, file_path=None):
     if not fileList:
         return cmds.error("Error trying to install.")
 
-    toolsFolder = os.path.join(scriptPath, os.path.dirname(fileList[0]))
+    toolsFolder = scriptPath / Path(fileList[0]).parts[0]
 
     # Remove old tool files
-    if os.path.isdir(toolsFolder):
-        for filename in os.listdir(toolsFolder):
-            f = os.path.join(toolsFolder, filename)
-            if ((tool in f) or ("updater" in f)) and (f != "_pref"):
-                if os.path.isfile(f):
-                    os.remove(f)
-                elif os.path.isdir(f):
-                    shutil.rmtree(f)
+    if toolsFolder.is_dir():
+        for filename in toolsFolder.iterdir():
+            if ((tool in filename.name) or ("updater" in filename.name)) and (filename.name != "_pref"):
+                if filename.is_file():
+                    filename.unlink()
+                elif filename.is_dir():
+                    shutil.rmtree(filename)
 
     for name in fileList:
         uncompressed = zfobj.read(name)
 
-        filename = formatPath(os.path.join(scriptPath, name))
-        d = os.path.dirname(filename)
+        filename = scriptPath / name
+        d = filename.parent
 
-        if not os.path.exists(d):
-            os.makedirs(d)
-        if filename.endswith(os.sep):
+        if not d.exists():
+            d.mkdir(parents=True)
+        if str(filename).endswith(os.sep):
             continue
 
-        output = open(filename, "wb")
-        output.write(uncompressed)
-        output.close()
+        with open(filename, "wb") as output:
+            output.write(uncompressed)
 
     zfobj.close()
-    if os.path.isfile(tmpZipFile):
-        os.remove(tmpZipFile)
+    if tmpZipFile.is_file():
+        tmpZipFile.unlink()
 
     if not file_path:
         add_shelf_button(tool, command)
@@ -107,10 +102,6 @@ def install(tool, command=None, file_path=None):
 
 
 def add_shelf_button(tool, command):
-    import maya.cmds as cmds
-    import maya.mel as mel
-    import os
-
     currentShelf = cmds.tabLayout(mel.eval("$nul=$gShelfTopLevel"), q=1, st=1)
 
     def find():
@@ -122,15 +113,10 @@ def add_shelf_button(tool, command):
         return False
 
     if not find():
+        icon_path = Path(os.environ["MAYA_APP_DIR"]) / "scripts" / "aleha_tools" / "_icons" / (tool + ".svg")
         cmds.shelfButton(
             parent=currentShelf,
-            i=os.path.join(
-                os.environ["MAYA_APP_DIR"],
-                "scripts",
-                "aleha_tools",
-                "_icons",
-                tool + ".svg",
-            ),
+            i=str(icon_path),
             label=tool,
             c=command or "import aleha_tools." + tool + " as " + tool + ";" + tool + ".show()",
             annotation=tool.title() + " by Aleha",
@@ -151,22 +137,22 @@ def get_latest_version():
         ) as response:
             if response.status != 200:
                 error_message = responses.get(response.status, "Unknown Error")
-                funcs.make_inViewMessage(NO_SERVER_ERROR % (response.status, error_message))
+                util.make_inViewMessage(NO_SERVER_ERROR % (response.status, error_message))
                 return None
 
             text = response.read().decode("utf-8")
             if not text:
-                funcs.make_inViewMessage(NO_DATA_ERROR)
+                util.make_inViewMessage(NO_DATA_ERROR)
                 return None
 
             return text
 
     except urllib.error.URLError as e:
-        funcs.make_inViewMessage(f"Network error: {e}")
+        util.make_inViewMessage(f"Network error: {e}")
     except TimeoutError:
-        funcs.make_inViewMessage("Connection timed out.")
+        util.make_inViewMessage("Connection timed out.")
     except Exception as e:
-        funcs.make_inViewMessage(f"Unexpected error: {e}")
+        util.make_inViewMessage(f"Unexpected error: {e}")
 
     return None
 
@@ -181,19 +167,19 @@ def _get_changelog():
                 text = response.read().decode("utf-8")
                 if not text:
                     data = {}
-                    funcs.make_inViewMessage(NO_DATA_ERROR)
+                    util.make_inViewMessage(NO_DATA_ERROR)
                 else:
                     data = json.loads(text)
                 return data
             else:
                 error_message = responses.get(response.status, "Unknown Error")
-                funcs.make_inViewMessage(NO_SERVER_ERROR % (response.status, error_message))
+                util.make_inViewMessage(NO_SERVER_ERROR % (response.status, error_message))
                 return None
     except urllib.error.URLError as e:
-        funcs.make_inViewMessage(f"Network error: {e}")
+        util.make_inViewMessage(f"Network error: {e}")
         return None
     except TimeoutError:
-        funcs.make_inViewMessage("Connection timed out.")
+        util.make_inViewMessage("Connection timed out.")
         return None
 
 
@@ -207,11 +193,12 @@ def _check_for_updates(ui, warning=True, force=False):
 
     if not force and installed_verion == latest_version:
         if warning:
-            return funcs.make_inViewMessage("<hl>" + installed_verion + "</hl>\nYou are up-to-date.")
+            util.make_inViewMessage("<hl>" + installed_verion + "</hl>\nYou are up-to-date.")
+        return
 
     elif latest_version < installed_verion:
         if warning:
-            return funcs.make_inViewMessage(
+            util.make_inViewMessage(
                 "You are using an unpublished\nversion <hl>" + installed_verion + "</hl></div>"
             )
 
@@ -220,13 +207,16 @@ def _check_for_updates(ui, warning=True, force=False):
         is_blocked = bool(changelog.get("blocked", False))
         if is_blocked:
             if warning:
-                return funcs.make_inViewMessage(
-                    "<hl>Updates are blocked</hl>\nPlease wait until the problem is solved.",
+                util.make_inViewMessage(
+                    "<hl>Updates are blocked</hl>\nPlease wait until the problem == solved.",
                     "warning",
                 )
+            return
 
         last_release_notes = changelog["versions"][latest_version]
         formated_changelog = "\n".join(["- " + line for line in last_release_notes])
+
+        funcs.install_userSetup()
 
         update_available = cmds.confirmDialog(
             title="New update for " + ui.TITLE + "!",
@@ -241,10 +231,9 @@ def _check_for_updates(ui, warning=True, force=False):
             from . import updater
 
             try:
-                from importlib import reload
+                reload(updater)
             except ImportError:
                 pass
-            reload(updater)
 
             command = "import aleha_tools.cams as cams\ncams.show()"
             if not install(ui.TITLE.lower(), command):
@@ -257,7 +246,7 @@ def _check_for_updates(ui, warning=True, force=False):
             cmds.evalDeferred(reload_command)
 
             cmds.evalDeferred(
-                'from aleha_tools import funcs\nfuncs.make_inViewMessage("Update finished successfully<hl>'
+                'from aleha_tools import util\nutil.make_inViewMessage("Update finished successfully<hl>'
                 + latest_version
                 + "</hl></div>)",
                 lowestPriority=True,

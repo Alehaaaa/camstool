@@ -105,4 +105,4 @@ def check_visible_layout(layout):
 
 def get_root_path():
     """Returns the root path of the project (parent of source directory)."""
-    return str(Path(__file__).resolve().parents[2])
+    return Path(__file__).resolve().parents[2]

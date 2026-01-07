@@ -586,7 +586,7 @@ def check_author():
 
 
 def _load_module(path, name):
-    spec = importlib.util.spec_from_file_location(name, path)
+    spec = importlib.util.spec_from_file_location(name, str(path))
     if not spec:
         raise ImportError(f"No module at '{path}'")
     module = importlib.util.module_from_spec(spec)
@@ -633,16 +633,16 @@ def compile_version():
             cmds.warning("New version must be greater than current version.")
             return
 
-        path = os.path.join(get_root_path(), "development", "UpdateCompiler.py")
+        path = get_root_path() / "development" / "UpdateCompiler.py"
         name = "compiler_cams"
         cls = "CompileCams"
         method = "main"
 
         destination_path = get_root_path()
-        source_path = os.path.join(destination_path, "source", "aleha_tools")
+        source_path = destination_path / "source" / "aleha_tools"
 
         try:
-            # Pass new_version as a positional argument
+            # Pass source_path, destination_path, new_version as positional arguments
             _run_method(
                 _load_module(path, name),
                 cls,
@@ -665,12 +665,12 @@ def changes_compiler():
     importlib.reload(aleha_tools)
     local_version = aleha_tools.DATA.get("VERSION")
 
-    path = os.path.join(get_root_path(), "development", "ChangesCompiler.py")
+    path = get_root_path() / "development" / "ChangesCompiler.py"
     name = "generate_changes_cams"
     cls = "CamsToolUpdater"
     method = "run"
 
-    script_path = os.path.join(get_root_path(), "source", "aleha_tools")
+    script_path = get_root_path() / "source" / "aleha_tools"
     try:
         changelog = _run_method(_load_module(path, name), cls, method, script_path, local_version)
         if changelog:
