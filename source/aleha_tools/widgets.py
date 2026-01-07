@@ -124,6 +124,8 @@ from .funcs import (
 )
 from . import DATA
 
+CONTEXTUAL_CURSOR = QCursor(QPixmap(":/rmbMenu.png"), hotX=11, hotY=8)
+
 
 """
 QPainter for the cameras shelf tabBar
@@ -258,6 +260,8 @@ class HoverButton(QPushButton):
         self._width = width
 
         self.is_modifiable = check_if_valid_camera(self.camera)
+
+        self.setCursor(CONTEXTUAL_CURSOR)
 
         # Initialization sequence
         self._initialize_camera_type()

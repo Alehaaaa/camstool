@@ -462,6 +462,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         menu_bar.addMenu(menu_general)
 
         title_label = QLabel("CAMS %s" % self.VERSION)
+        title_label.setCursor(Qt.PointingHandCursor)
         title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         title_label.setFixedHeight(util.DPI(32))
         title_label.setContentsMargins(util.DPI(20), 0, util.DPI(20), 0)
@@ -606,7 +607,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         self.startup_Viewport_checkbox.setCheckable(True)
         self.startup_Viewport_checkbox.setChecked(self.startup_viewport)
         self.startup_Viewport_checkbox.triggered.connect(
-            lambda state=self.startup_Viewport_checkbox.isChecked(): self.change_startup_viewport(state)
+            lambda state=self.startup_Viewport_checkbox.isChecked(): self.process_prefs(
+                startup_viewport=state
+            )
         )
 
         self.startup_HUD_checkbox = system_menu.addAction("HUD on Startup")
@@ -631,6 +634,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
     def update_dock_menu(self):
         """Update the enabled state of dock buttons before the menu == shown"""
+        if not util.is_valid_widget(self.dock_menu):
+            return
+
         for action in self.dock_menu.actions():
             layout = next(
                 (key for key, name in self.docking_layouts.items() if name == action.text()),
@@ -744,19 +750,28 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
     def create_debug_bar(self):
         """Handles opening and resizing the debug bar in Maya."""
-        from . import debug  # Importing the debug module
+        # Clean up existing debug menu to ensure it's always at the bottom and fresh
+        for action in self.version_bar.actions():
+            if action.text() == "Debug Functions":
+                self.version_bar.removeAction(action)
+                if action.menu():
+                    action.menu().deleteLater()
+                break
 
-        reload(debug)
+        self.debug_menu = QMenu("Debug Functions", self.version_bar)
+        self.debug_menu.setIcon(QIcon(util.return_icon_path("debug")))
+        self.version_bar.addMenu(self.debug_menu)
 
-        if hasattr(self, "debug_menu"):
-            try:
-                self.version_bar.removeAction(self.debug_menu.menuAction())
-                self.debug_menu.deleteLater()
-            except RuntimeError:
-                print("Debug menu was already deleted.")
+        self.debug_menu.aboutToShow.connect(self._populate_debug_menu)
 
-        self.debug_menu = self.version_bar.addMenu(QIcon(util.return_icon_path("debug")), "Debug Functions")
-        self.debug_menu.aboutToShow.connect(lambda self=self: debug.on_show(self))
+    def _populate_debug_menu(self):
+        try:
+            from . import debug
+
+            reload(debug)
+            debug.on_show(self)
+        except Exception as e:
+            print("Error populating debug menu: %s" % e)
 
     def open_release_notes_function(self):
         notes_path = os.path.join(util.get_root_path(), "release_notes.json")
@@ -844,6 +859,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         return docked
 
     def add_presets(self):
+        if not util.is_valid_widget(self.menu_presets):
+            return
+
         self.hud_settings = settings.get_pref("hudSettings") or settings.initial_settings().get(
             "defaultSettings", None
         )
@@ -1024,7 +1042,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
                 box.setIcon(QMessageBox.Warning)
                 box.setWindowTitle("About to erase All Settings!")
                 box.setText(
-                    "Are you sure you want to delete all the settings in Default Attributes?\nThis action is not undoable."
+                    "Are you sure you want to delete ALL settings for Cams?\nThis action is not undoable."
                 )
                 box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
 
