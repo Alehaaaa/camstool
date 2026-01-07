@@ -56,6 +56,7 @@ except ImportError:
         QFrame,
         QMenu,
         QWidgetAction,
+        QActionGroup,
         QApplication,
         QMessageBox,
         QScrollArea,
@@ -435,9 +436,7 @@ class HoverButton(QPushButton):
         menu.addAction(action)
 
     def _add_selection_actions(self, menu):
-        self.select_action = menu.addAction(
-            self.icons["select"], "Select", partial(select_cam, self.camera, self)
-        )
+        self.select_action = menu.addAction(self.icons["select"], "Select", partial(select_cam, self.camera, self))
         self.deselect_action = menu.addAction(
             self.icons["deselect"], "Deselect", partial(deselect_cam, self.camera, self)
         )
@@ -827,9 +826,7 @@ class HoverButton(QPushButton):
         menu.addAction(self.icons["tearoff"], "Tear Off Copy", partial(tear_off_cam, self.camera))
 
     def _add_delete_action(self, menu):
-        if self.camera != self.parentUI.default_cam[0] and not cmds.referenceQuery(
-            self.camera, isNodeReferenced=True
-        ):
+        if self.camera != self.parentUI.default_cam[0] and not cmds.referenceQuery(self.camera, isNodeReferenced=True):
             menu.addSeparator()
             menu.addAction(
                 self.icons["remove"],
@@ -1017,9 +1014,7 @@ class Attributes(QDialog):
         # Second section: Display Attributes
         self.gate_mask_opacity_slider = QSlider(Qt.Horizontal)
         self.gate_mask_opacity_slider.setRange(0, 1000)
-        self.gate_mask_opacity_slider.setValue(
-            int(round(cmds.getAttr(self.cam + ".displayGateMaskOpacity") * 1000))
-        )
+        self.gate_mask_opacity_slider.setValue(int(round(cmds.getAttr(self.cam + ".displayGateMaskOpacity") * 1000)))
         self.gate_mask_opacity_value = QLineEdit()
         self.gate_mask_opacity_value.setText(str(self.get_float(self.gate_mask_opacity_slider.value())))
         self.gate_mask_opacity_value.setFixedWidth(DPI(80))
@@ -1135,14 +1130,10 @@ class Attributes(QDialog):
         )
 
         self.gate_mask_opacity_slider.valueChanged.connect(
-            lambda: self.gate_mask_opacity_value.setText(
-                self.get_float(self.gate_mask_opacity_slider.value())
-            )
+            lambda: self.gate_mask_opacity_value.setText(self.get_float(self.gate_mask_opacity_slider.value()))
         )
 
-        self.gate_mask_color_picker.clicked.connect(
-            lambda: self.show_color_selector(self.gate_mask_color_picker)
-        )
+        self.gate_mask_color_picker.clicked.connect(lambda: self.show_color_selector(self.gate_mask_color_picker))
 
         self.gate_mask_color_slider.valueChanged.connect(
             lambda: self.update_button_value(self.gate_mask_color_slider.value())
@@ -1384,9 +1375,7 @@ class DefaultSettings(QDialog):
                     widget = value.itemAt(i).widget()
                     if isinstance(widget, QWidget):
                         checkbox.setChecked(widget.isEnabled())
-                        checkbox.toggled.connect(
-                            lambda checked=checkbox.isChecked(), v=widget: v.setEnabled(checked)
-                        )
+                        checkbox.toggled.connect(lambda checked=checkbox.isChecked(), v=widget: v.setEnabled(checked))
                 widget_container.addLayout(value)
             if isinstance(value, QWidget):
                 checkbox.setChecked(value.isEnabled())
@@ -1402,14 +1391,10 @@ class DefaultSettings(QDialog):
         )
 
         self.gate_mask_opacity_slider.valueChanged.connect(
-            lambda: self.gate_mask_opacity_value.setText(
-                self.get_float(self.gate_mask_opacity_slider.value())
-            )
+            lambda: self.gate_mask_opacity_value.setText(self.get_float(self.gate_mask_opacity_slider.value()))
         )
 
-        self.gate_mask_color_picker.clicked.connect(
-            lambda: self.show_color_selector(self.gate_mask_color_picker)
-        )
+        self.gate_mask_color_picker.clicked.connect(lambda: self.show_color_selector(self.gate_mask_color_picker))
 
         self.gate_mask_color_slider.valueChanged.connect(
             lambda: self.update_button_value(self.gate_mask_color_slider.value())
