@@ -48,7 +48,7 @@ def install(tool, command=None, file_path=None):
     import shutil
     import zipfile
 
-    scriptPath = os.path.join(os.environ["MAYA_APP_DIR"], "scripts")
+    scriptPath = os.path.join(util.get_root_path(), "source")
     tmpZipFile = os.path.join(scriptPath, "tmp.zip")
 
     if os.path.isfile(tmpZipFile):
