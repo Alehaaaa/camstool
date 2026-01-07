@@ -1,5 +1,5 @@
-import os
 import sys
+from pathlib import Path
 import maya.cmds as cmds
 import maya.OpenMayaUI as omui
 
@@ -25,17 +25,12 @@ def DPI(val):
 def return_icon_path(icon):
     if "." not in icon:
         icon = icon + ".png"
-    script_directory = os.path.dirname(__file__)
-    return os.path.join(script_directory, "_icons", icon)
+    return str(Path(__file__).parent / "_icons" / icon)
 
 
 def make_inViewMessage(message, icon="camera"):
     cmds.inViewMessage(
-        amg='<div style="text-align:center"><img src='
-        + return_icon_path(icon)
-        + ">\n"
-        + message
-        + "\n",
+        amg='<div style="text-align:center"><img src=' + return_icon_path(icon) + ">\n" + message + "\n",
         pos="midCenter",
         a=0.9,
         fade=True,
@@ -98,11 +93,16 @@ def is_valid_widget(widget, expected_type=None):
 def check_visible_layout(layout):
     try:
         try:
-            s = cmds.workspaceControl(
-                layout, q=True, visible=True
-            ) and not cmds.workspaceControl(layout, q=True, collapse=True)
+            s = cmds.workspaceControl(layout, q=True, visible=True) and not cmds.workspaceControl(
+                layout, q=True, collapse=True
+            )
         except Exception:
             s = cmds.window(layout, q=True, visible=True)
     except Exception:
         s = False
     return s
+
+
+def get_root_path():
+    """Returns the root path of the project (parent of source directory)."""
+    return str(Path(__file__).resolve().parents[2])

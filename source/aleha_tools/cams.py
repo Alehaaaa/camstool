@@ -255,7 +255,6 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             if util.is_valid_widget(self.dock_ui_btn, QPushButton):
                 self.dock_ui_btn.setHidden(False)
             cmds.workspaceControl(self.workspace_control_name, e=True, actLikeMayaUIElement=True)
-            # cmds.evalDeferred(self.shelf_tabbar)
 
     def showWindow(self, dock=True):
         funcs.close_all_Windows()
@@ -285,13 +284,6 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
             # Make the workspaceControl call just once
             cmds.workspaceControl(self.workspace_control_name, **kwargs)
-
-            # Defer tab bar creation or update
-            # cmds.evalDeferred(self.shelf_tabbar, lowestPriority=True)
-
-        return
-        is_floating = cmds.workspaceControl(self.workspace_control_name, e=True, floating=True)
-        self.dock_ui_btn.setHidden(False)
 
     # def shelf_tabbar(self):
     #     try:
@@ -387,10 +379,22 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             cameras = util.get_cameras()
             camera_set = set(cameras)
 
-            # Early exit if cameras haven't changed (excluding 'main' which == always shown)
             current_displayed = set(self.all_displayed_buttons.keys()) - {"main"}
+
+            empty_msg = "New cameras will appear here..."
+            existing_label = None
+            for i in range(self.cams_scroll.container_layout.count()):
+                w = self.cams_scroll.container_layout.itemAt(i).widget()
+                if isinstance(w, QLabel) and w.text() == empty_msg:
+                    existing_label = w
+                    break
+
+            # Early exit check with label state
             if camera_set == current_displayed:
-                return current_displayed
+                if not cameras and existing_label:
+                    return current_displayed
+                if cameras and not existing_label:
+                    return current_displayed
 
             # Get existing buttons from layout
             existing_buttons = {
@@ -414,8 +418,20 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
             self.all_displayed_buttons = {"main": self.default_cam_btn}
 
-            if cameras:
-                # Add stretch if layout == empty
+            if not cameras:
+                if not existing_label:
+                    if self.cams_scroll.container_layout.count() == 0:
+                        self.cams_scroll.container_layout.addStretch()
+
+                    lbl = QLabel(empty_msg)
+                    lbl.setStyleSheet("color: gray; font-style: italic; margin-left: 2px;")
+                    self.cams_scroll.container_layout.insertWidget(0, lbl)
+
+            else:
+                if existing_label:
+                    self.cams_scroll.container_layout.removeWidget(existing_label)
+                    existing_label.deleteLater()
+
                 if self.cams_scroll.container_layout.count() == 0:
                     self.cams_scroll.container_layout.addStretch()
 
@@ -483,8 +499,45 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         )
         menu_general.addSeparator()
 
-        ## DOCK TAB ##
+        self._create_dock_menu(menu_general)
+        self._create_settings_menu(menu_general)
 
+        ## TOOLS MENU ##
+
+        menu_tools = widgets.OpenMenu("Tools", menu_bar)
+        menu_bar.addMenu(menu_tools)
+        menu_tools.setTearOffEnabled(True)
+        self.followCam = menu_tools.addAction(QIcon(util.return_icon_path("follow")), "Follow Cam")
+        self.aimCam = menu_tools.addAction(QIcon(util.return_icon_path("aim")), "Aim Cam")
+        menu_tools.addSeparator()
+        self.multicams = menu_tools.addAction(QIcon(util.return_icon_path("camera_multicams")), "MultiCams")
+
+        menu_tools.addSeparator()
+
+        self.menu_presets = widgets.OpenMenu("HUD Presets", menu_tools)
+        menu_tools.addMenu(self.menu_presets)
+        self.menu_presets.setTearOffEnabled(True)
+
+        self.add_presets()
+        self.menu_presets.aboutToShow.connect(self.add_presets)
+
+        self.HUD_checkbox = menu_tools.addAction("Display HUDs")
+        self.HUD_checkbox.setCheckable(True)
+        self.HUD_checkbox.setChecked(self.HUD_display_cam())
+        self.HUD_checkbox.triggered.connect(
+            lambda state=self.HUD_display_cam(): self.HUD_display_cam(state=state)
+        )
+
+        self.version_bar = menu_bar.addMenu(self.VERSION)
+        is_author = funcs.check_author()
+        self.version_bar.setEnabled(is_author)
+        if is_author:
+            self.populate_version_bar()
+
+        menu_bar.setCornerWidget(self.dock_ui_btn)
+        self.main_widget_layout.setMenuBar(menu_bar)
+
+    def _create_dock_menu(self, parent_menu):
         self.dock_menu = QMenu("Dock Window")
         self.dock_menu.setIcon(QIcon(util.return_icon_path("dock")))
         self.dock_menu.setTearOffEnabled(True)
@@ -530,12 +583,11 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
         self.dock_menu.aboutToShow.connect(self.update_dock_menu)
 
-        menu_general.addMenu(self.dock_menu)
+        parent_menu.addMenu(self.dock_menu)
 
-        ## SETTINGS TAB ##
-
-        system_menu = widgets.OpenMenu("System", menu_general)
-        menu_general.addMenu(system_menu)
+    def _create_settings_menu(self, parent_menu):
+        system_menu = widgets.OpenMenu("System", parent_menu)
+        parent_menu.addMenu(system_menu)
         system_menu.setIcon(QIcon(util.return_icon_path("system")))
         system_menu.setTearOffEnabled(True)
 
@@ -572,41 +624,6 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         system_menu.addSeparator()
         self.close_btn = system_menu.addAction(QIcon(util.return_icon_path("close")), "Close")
         self.uninstall_btn = system_menu.addAction(QIcon(util.return_icon_path("remove")), "Uninstall")
-
-        ## TOOLS MENU ##
-
-        menu_tools = widgets.OpenMenu("Tools", menu_bar)
-        menu_bar.addMenu(menu_tools)
-        menu_tools.setTearOffEnabled(True)
-        self.followCam = menu_tools.addAction(QIcon(util.return_icon_path("follow")), "Follow Cam")
-        self.aimCam = menu_tools.addAction(QIcon(util.return_icon_path("aim")), "Aim Cam")
-        menu_tools.addSeparator()
-        self.multicams = menu_tools.addAction(QIcon(util.return_icon_path("camera_multicams")), "MultiCams")
-
-        menu_tools.addSeparator()
-
-        self.menu_presets = widgets.OpenMenu("HUD Presets", menu_tools)
-        menu_tools.addMenu(self.menu_presets)
-        self.menu_presets.setTearOffEnabled(True)
-
-        self.add_presets()
-        self.menu_presets.aboutToShow.connect(self.add_presets)
-
-        self.HUD_checkbox = menu_tools.addAction("Display HUDs")
-        self.HUD_checkbox.setCheckable(True)
-        self.HUD_checkbox.setChecked(self.HUD_display_cam())
-        self.HUD_checkbox.triggered.connect(
-            lambda state=self.HUD_display_cam(): self.HUD_display_cam(state=state)
-        )
-
-        self.version_bar = menu_bar.addMenu(self.VERSION)
-        is_author = funcs.check_author()
-        self.version_bar.setEnabled(is_author)
-        if is_author:
-            self.populate_version_bar()
-
-        menu_bar.setCornerWidget(self.dock_ui_btn)
-        self.main_widget_layout.setMenuBar(menu_bar)
 
     def change_startup_run_cams(self, state):
         QTimer.singleShot(0, partial(funcs.install_userSetup, uninstall=not state))
@@ -742,8 +759,8 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         self.debug_menu.aboutToShow.connect(lambda self=self: debug.on_show(self))
 
     def open_release_notes_function(self):
-        notes_path = r"C:\Users\aleha\Documents\Programming\GitHub\camstool\release_notes.json"  # funcs.get_release_notes_path()
-        if notes_path:
+        notes_path = os.path.join(util.get_root_path(), "release_notes.json")
+        if os.path.exists(notes_path):
             if sys.platform == "win32":
                 os.startfile(os.path.normpath(notes_path))
             else:
@@ -1116,7 +1133,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             if not cams_ui:
                 return
             cams_ui = cams_ui.parent().parent()
-            cams_ui.setFixedHeight(util.DPI(54))
+            cams_ui.setFixedHeight(util.DPI(58))
             return
 
     def camera_creation_scripjob(self):

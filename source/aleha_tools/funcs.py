@@ -34,7 +34,7 @@ except ImportError:
 
 import importlib
 
-from .util import DPI, get_maya_qt, get_python_version
+from .util import DPI, get_maya_qt, get_python_version, get_root_path
 
 long = int
 
@@ -633,7 +633,7 @@ def compile_version():
             cmds.warning("New version must be greater than current version.")
             return
 
-        path = "C:\\Users\\aleha\\Documents\\Programming\\GitHub\\camstool\\development\\UpdateCompiler.py"
+        path = os.path.join(get_root_path(), "development", "UpdateCompiler.py")
         name = "compiler_cams"
         cls = "CompileCams"
         method = "main"
@@ -665,7 +665,7 @@ def changes_compiler():
     importlib.reload(aleha_tools)
     local_version = aleha_tools.DATA.get("VERSION")
 
-    path = "C:\\Users\\aleha\\Documents\\Programming\\GitHub\\camstool\\development\\ChangesCompiler.py"
+    path = os.path.join(get_root_path(), "development", "ChangesCompiler.py")
     name = "generate_changes_cams"
     cls = "CamsToolUpdater"
     method = "run"

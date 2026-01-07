@@ -1,5 +1,10 @@
 {
     "versions": {
+        "0.2.08beta": [
+            "Added Gemini API.",
+            "Fixed some stuff.",
+            "And more..."
+        ],
         "0.2.07beta": [
             "Development updates.",
             "MacOS fixes.",

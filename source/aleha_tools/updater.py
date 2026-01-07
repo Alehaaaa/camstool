@@ -14,7 +14,9 @@ from . import funcs, util
 reload(funcs)
 reload(util)
 
-ssl_context = ssl._create_unverified_context()
+unverified_ssl_context = ssl.create_default_context()
+unverified_ssl_context.check_hostname = False
+unverified_ssl_context.verify_mode = ssl.CERT_NONE
 
 REPO = "https://raw.githubusercontent.com/Alehaaaa/camstool/main/"
 
@@ -29,7 +31,7 @@ def formatPath(path):
 
 
 def download(downloadUrl, saveFile):
-    response = urllib.request.urlopen(downloadUrl, context=ssl_context, timeout=60)
+    response = urllib.request.urlopen(downloadUrl, context=unverified_ssl_context, timeout=60)
 
     if response is None:
         cmds.warning("Error trying to install.")
@@ -144,7 +146,9 @@ def add_shelf_button(tool, command):
 def get_latest_version():
     current_version_url = REPO + "version"
     try:
-        with urllib.request.urlopen(current_version_url, context=ssl_context, timeout=30) as response:
+        with urllib.request.urlopen(
+            current_version_url, context=unverified_ssl_context, timeout=30
+        ) as response:
             if response.status != 200:
                 error_message = responses.get(response.status, "Unknown Error")
                 funcs.make_inViewMessage(NO_SERVER_ERROR % (response.status, error_message))
@@ -170,7 +174,9 @@ def get_latest_version():
 def _get_changelog():
     current_version_url = REPO + "release_notes.json"
     try:
-        with urllib.request.urlopen(current_version_url, context=ssl_context, timeout=30) as response:
+        with urllib.request.urlopen(
+            current_version_url, context=unverified_ssl_context, timeout=30
+        ) as response:
             if response.status == 200:
                 text = response.read().decode("utf-8")
                 if not text:

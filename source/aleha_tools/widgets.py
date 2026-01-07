@@ -33,6 +33,7 @@ try:
         QWheelEvent,
         QPixmap,
         QImage,
+        QFontMetrics,
     )
     from PySide6.QtCore import (  # type: ignore
         Qt,
@@ -42,6 +43,7 @@ try:
         QPoint,
         QRegularExpression,
         QMimeData,
+        QTimer,
     )
 except ImportError:
     from PySide2.QtWidgets import (
@@ -76,6 +78,7 @@ except ImportError:
         QWheelEvent,
         QPixmap,
         QImage,
+        QFontMetrics,
     )
     from PySide2.QtCore import (
         Qt,
@@ -85,6 +88,7 @@ except ImportError:
         QPointF,
         QPoint,
         QMimeData,
+        QTimer,
     )
 
     QRegularExpression = QRegExp
@@ -142,9 +146,7 @@ class ShelfPainter(QWidget):
         color = self.palette().color(self.backgroundRole())
         painter = QPainter(self)
         painter.setPen(QPen(color, self.tabbar_width))
-        painter.drawLine(
-            self.tabbar_width // 2, 0, self.tabbar_width // 2, self.height()
-        )
+        painter.drawLine(self.tabbar_width // 2, 0, self.tabbar_width // 2, self.height())
 
         pen = QPen(self.line_color)
         pen.setWidth(1)  # Line width of 1 pixel
@@ -215,6 +217,8 @@ class OpenMenu(QMenu):
                 super().mouseReleaseEvent(e)
                 action.setEnabled(True)
                 action.trigger()
+            elif action.data() == "keep_open":
+                action.trigger()
             else:
                 super().mouseReleaseEvent(e)
         else:
@@ -241,15 +245,17 @@ QPushButton hover detection
 
 class HoverButton(QPushButton):
     dropped = Signal(tuple)
+    singleClicked = Signal()
 
     def __init__(self, camera, ui=None, width=True):
         super(HoverButton, self).__init__()
         self.parentUI = ui
         self.camera = camera
         self.pressed = False
-        self._width = width
         self.dragging = False
         self.start_pos = None
+
+        self._width = width
 
         self.is_modifiable = check_if_valid_camera(self.camera)
 
@@ -258,7 +264,73 @@ class HoverButton(QPushButton):
         self._setup_ui()
         self._setup_styles()
         self._setup_icons()
+        self._setup_icons()
+        self._setup_inline_rename()  # New setup
         self._setup_event_handlers()
+
+        # Click management
+        self._click_timer = QTimer(self)
+        self._click_timer.setSingleShot(True)
+        self._click_timer.setInterval(100)
+        self._click_timer.timeout.connect(self._emit_single_click)
+
+    def _emit_single_click(self):
+        self.singleClicked.emit()
+
+    def _setup_inline_rename(self):
+        self.inline_rename_field = CustomLineEdit(self)
+        self.inline_rename_field.hide()
+        self.inline_rename_field.returnPressed.connect(self._finish_inline_rename)
+        self.inline_rename_field.editingFinished.connect(self._finish_inline_rename)
+        # Style matches button but white background for input
+        self.inline_rename_field.setStyleSheet(f"""
+            QLineEdit {{
+                border-radius: {DPI(2)}px;
+                padding: {DPI(2)}px;
+                color: black;
+                background-color: rgba(0, 0, 0, 50); 
+                selection-background-color: rgba(255, 255, 255, 100);
+            }}
+        """)
+        self._renaming_active = False
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # Draw Background
+        current_variant = getattr(self, "_current_bg_variant", "base")
+        color_val = getattr(self, f"{current_variant}_color", self.base_color)
+
+        if self.isDown() or self.isChecked():
+            color_val = self.dark_color
+
+        # Parse "r, g, b" string to QColor
+        try:
+            rgb = [int(float(x)) for x in color_val.split(",")]
+            bg_color = QColor(*rgb)
+        except ValueError:
+            bg_color = QColor(128, 128, 128)  # Fallback
+
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(bg_color)
+        painter.drawRoundedRect(self.rect(), DPI(5), DPI(5))
+
+        # Draw Icon
+        icon_size = DPI(16)
+        icon_x = DPI(4)
+        icon_y = (self.height() - icon_size) // 2
+
+        current_icon = self.icon()
+        if not current_icon.isNull():
+            current_icon.paint(painter, icon_x, icon_y, icon_size, icon_size)
+
+        # Draw Text
+        if not self._renaming_active:
+            text_x = icon_x + icon_size + DPI(4)
+            text_rect = self.rect().adjusted(text_x, 0, -DPI(4), 0)
+            painter.setPen(Qt.black)
+            painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, self.text())
 
     # Initialization Helpers ##################################################
     def _initialize_camera_type(self):
@@ -342,36 +414,21 @@ class HoverButton(QPushButton):
         self._add_common_actions(menu)
 
     def _add_title_section(self, menu):
-        style = f"""
+        if not self.camera:
+            return
+
+        label = QLabel(self._truncated_name())
+        # style
+        label.setStyleSheet(f"""
             font-size: {DPI(14)}px; 
             font-weight: bold;
             padding: 0 {DPI(20)}px;
-        """
+        """)
+        label.setFixedHeight(DPI(32))
 
-        # Rename UI elements
-        self.rename_label = QLabel(self._truncated_name())
-        self.rename_label.setFixedHeight(DPI(32))
-        self.rename_label.setStyleSheet(style)
-
-        # Add to menu
-        label_action = self._create_widget_action(self.rename_label)
-        menu.addAction(label_action)
-
-        # Enable rename interaction
-        if self.is_modifiable:
-            self.rename_field = CustomLineEdit()
-            self.rename_field.setStyleSheet(style)
-            self.rename_field.returnPressed.connect(self._finalize_rename)
-
-            # Add to menu
-            field_action = self._create_widget_action(self.rename_field)
-
-            menu.addAction(field_action)
-            field_action.setVisible(False)
-
-            self.rename_label.mouseDoubleClickEvent = lambda e: self._enter_rename_mode(
-                label_action, field_action
-            )
+        action = QWidgetAction(self)
+        action.setDefaultWidget(label)
+        menu.addAction(action)
 
     def _add_selection_actions(self, menu):
         self.select_action = menu.addAction(
@@ -393,9 +450,11 @@ class HoverButton(QPushButton):
         )
 
     def _add_rename_section(self, menu):
-        menu.addAction(
-            self.icons["rename"], "Rename", partial(rename_cam, self.camera, "", self)
-        )
+        if not self.is_modifiable:
+            return
+
+        # Trigger inline rename on the BUTTON
+        menu.addAction(self.icons["rename"], "Rename", self.start_inline_rename)
 
     def _add_default_camera_menu(self, menu):
         if self.camera == self.parentUI.default_cam[0]:
@@ -404,9 +463,7 @@ class HoverButton(QPushButton):
             default_cam_menu_grp = QActionGroup(self)
 
             for c in get_cameras(default=True):
-                action = default_cam_menu.addAction(
-                    c, partial(self._set_default_cam, (c, True), menu)
-                )
+                action = default_cam_menu.addAction(c, partial(self._set_default_cam, (c, True), menu))
                 default_cam_menu_grp.addAction(action)
                 action.setCheckable(True)
                 if c == self.camera:
@@ -440,9 +497,7 @@ class HoverButton(QPushButton):
             for label, attr, is_plugin in elements:
                 action = menu.addAction(f"     {label}")
                 action.setCheckable(True)
-                state = self._get_display_state(
-                    attr, is_plugin, cam_panels, preferences
-                )
+                state = self._get_display_state(attr, is_plugin, cam_panels, preferences)
                 action.setChecked(state)
                 element_actions.append((action, attr, is_plugin))
 
@@ -450,13 +505,9 @@ class HoverButton(QPushButton):
             section_action.setChecked(section_state)
 
             # Connect actions
-            section_action.triggered.connect(
-                partial(self._toggle_section, section_action, element_actions)
-            )
+            section_action.triggered.connect(partial(self._toggle_section, section_action, element_actions))
             for action, attr, is_plugin in element_actions:
-                action.triggered.connect(
-                    partial(self._update_display_attribute, attr, is_plugin, action)
-                )
+                action.triggered.connect(partial(self._update_display_attribute, attr, is_plugin, action))
 
     # Display State Management ################################################
     def _get_display_state(self, attribute, is_plugin, panels, preferences):
@@ -484,6 +535,7 @@ class HoverButton(QPushButton):
     # Event Handling ##########################################################
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
+            self._click_timer.stop()
             self.start_pos = event.pos()
             self._set_background_color("dark")
         super().mousePressEvent(event)
@@ -492,7 +544,19 @@ class HoverButton(QPushButton):
         if event.button() == Qt.LeftButton:
             self.start_pos = None
             self._set_background_color("light")
+
+            # Start timer for single click if we are modifiable (meaning we might double click to rename)
+            # If standard camera/locked, maybe we don't care about double click rename?
+            # But consistent behavior is better.
+            if self.rect().contains(event.pos()) and not self._renaming_active:
+                self._click_timer.start()
+
         super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._click_timer.stop()
+            self.start_inline_rename()
 
     def mouseMoveEvent(self, event):
         if not self._should_start_drag(event):
@@ -521,22 +585,20 @@ class HoverButton(QPushButton):
 
     # UI Utilities ############################################################
     def _truncated_name(self, length=18):
-        return (
-            f"..{self.camera[-length + 2 :]}"
-            if len(self.camera) > length
-            else self.camera
-        )
+        return f"..{self.camera[-length + 2 :]}" if len(self.camera) > length else self.camera
 
     def _update_button_name(self):
         self.setText(self._truncated_name(10))
         if self._width:
-            self.setFixedWidth(DPI(25 + len(self.text()) * 5.5))
+            font_metrics = QFontMetrics(self.font())
+            text_width = font_metrics.horizontalAdvance(self.text())
+            # Padding: Icon (16) + Left(4) + Mid(4) + Right(4) = 28. Using 30 for safety.
+            padding = DPI(30)
+            self.setFixedWidth(text_width + padding)
 
     def _set_background_color(self, variant):
-        color = getattr(self, f"{variant}_color", self.base_color)
-        self.setStyleSheet(
-            self.styleSheet() + f"QPushButton {{ background-color: rgb({color}); }}"
-        )
+        self._current_bg_variant = variant
+        self.update()  # Trigger repaint
 
     # Modifier Key Handling ###################################################
     def _handle_key_modifiers(self):
@@ -552,7 +614,10 @@ class HoverButton(QPushButton):
                 (0, 1, 0): ("select", partial(select_cam, self.camera)),
                 (1, 0, 0): ("deselect", partial(deselect_cam, self.camera)),
                 (1, 1, 0): ("duplicate", partial(duplicate_cam, self.camera, self)),
-                (1, 0, 1): ("rename", partial(rename_cam, self.camera, self.parentUI)),
+                (1, 0, 1): (
+                    "rename",
+                    self.start_inline_rename,
+                ),
                 (1, 1, 1): ("remove", partial(delete_cam, self.camera, self.parentUI)),
                 (0, 1, 1): ("tearoff", partial(tear_off_cam, self.camera)),
                 (0, 0, 1): (
@@ -568,49 +633,67 @@ class HoverButton(QPushButton):
 
             self.setIcon(self.icons[icon_name])
             try:
-                self.clicked.disconnect()
+                self.singleClicked.disconnect()
             except Exception:
                 pass
-            self.clicked.connect(action)
+            self.singleClicked.connect(action)
 
-    # Context Menu Helpers ####################################################
-    def _create_widget_action(self, widget, height=DPI(32)):
-        widget.setFixedHeight(height)
-        widget.setMouseTracking(True)  # Enable mouse tracking
+    def start_inline_rename(self):
+        if not self.is_modifiable:
+            return
 
-        def mouseMoveEvent(event):
-            if widget.rect().contains(event.pos()):
-                widget.setCursor(QCursor(Qt.IBeamCursor))
-            else:
-                widget.setCursor(QCursor(Qt.ArrowCursor))
+        self._renaming_active = True
 
-        widget.mouseMoveEvent = mouseMoveEvent
+        # Calculate offsets for inline editor
+        icon_width = DPI(16) + DPI(8)  # Icon + padding
 
-        action = QWidgetAction(self)
-        action.setDefaultWidget(widget)
-        return action
+        # Height for 'font metrics' look - slightly taller than font
+        fm = QFontMetrics(self.font())
+        height = fm.height() + DPI(4)
 
-    def _enter_rename_mode(self, label_action, field_action):
-        self.rename_field.setText(self.camera)
-        label_action.setVisible(False)
-        field_action.setVisible(True)
-        self.rename_field.setFocus()
+        # Centered vertically
+        y_pos = (self.height() - height) // 2
 
-    def _finalize_rename(self):
-        new_name = self.rename_field.text()
+        rect = self.rect()
+        rect.setLeft(rect.left() + icon_width)
+        rect.setTop(y_pos)
+        rect.setHeight(height)
+        # Right padding
+        rect.setRight(rect.right() - DPI(4))
+
+        self.inline_rename_field.setGeometry(rect)
+        self.inline_rename_field.setText(self.camera)
+        self.inline_rename_field.show()
+        self.inline_rename_field.setFocus()
+        self.inline_rename_field.selectAll()
+        self.update()  # Repaint to hide text
+
+    def _finish_inline_rename(self):
+        if not self._renaming_active:
+            return
+
+        self._renaming_active = False
+        new_name = self.inline_rename_field.text().strip()
+        self.inline_rename_field.hide()
+        self.update()  # Repaint to show text
+
+        # Restore text (will be overwritten if rename succeeds and UI reloads)
+        if hasattr(self, "_original_text"):
+            self.setText(self._original_text)
+
         if new_name and new_name != self.camera:
             success = rename_cam(self.camera, new_name, self.parentUI)
             if success:
-                self.camera = new_name
-                self._update_button_name()
-        self.rename_field.parent().hide()
+                # Assuming rename_cam updates file/scene state but we might need
+                # to manually update this object if UI reload doesn't happen fast enough
+                # causing flickering, but generally rename_cam calls ui.reload_cams_UI()
+                pass
 
     # Drag and Drop ###########################################################
     def _should_start_drag(self, event):
         return (
             event.buttons() == Qt.LeftButton
-            and (event.pos() - self.start_pos).manhattanLength()
-            >= QApplication.startDragDistance()
+            and (event.pos() - self.start_pos).manhattanLength() >= QApplication.startDragDistance()
         )
 
     def _handle_drop_position(self, event):
@@ -668,9 +751,7 @@ class HoverButton(QPushButton):
                     action = follow_mode_menu.addAction(label)
                     action.setCheckable(True)
                     action.setChecked(mode == current_mode)
-                    action.triggered.connect(
-                        partial(cmds.setAttr, follow_mode_attr, mode)
-                    )
+                    action.triggered.connect(partial(cmds.setAttr, follow_mode_attr, mode))
                     group.addAction(action)
 
                 follow_mode_menu.addSeparator()
@@ -693,9 +774,7 @@ class HoverButton(QPushButton):
                     action = mute_menu.addAction(name)
                     action.setCheckable(True)
                     action.setChecked(not cmds.mute(mute_channel_attr, q=True))
-                    action.triggered.connect(
-                        partial(self._mute_follow_channel, action, mute_channel_attr)
-                    )
+                    action.triggered.connect(partial(self._mute_follow_channel, action, mute_channel_attr))
 
                 follow_mode_menu.addMenu(mute_menu)
 
@@ -719,8 +798,7 @@ class HoverButton(QPushButton):
         action = menu.addAction("FilmGate Mask", self._toggle_filmgate)
         action.setCheckable(True)
         action.setChecked(
-            cmds.getAttr(f"{self.camera}.displayFilmGate")
-            and cmds.getAttr(f"{self.camera}.displayGateMask")
+            cmds.getAttr(f"{self.camera}.displayFilmGate") and cmds.getAttr(f"{self.camera}.displayGateMask")
         )
 
     def _toggle_filmgate(self):
@@ -742,9 +820,7 @@ class HoverButton(QPushButton):
         )
 
     def _add_tearoff_action(self, menu):
-        menu.addAction(
-            self.icons["tearoff"], "Tear Off Copy", partial(tear_off_cam, self.camera)
-        )
+        menu.addAction(self.icons["tearoff"], "Tear Off Copy", partial(tear_off_cam, self.camera))
 
     def _add_delete_action(self, menu):
         if self.camera != self.parentUI.default_cam[0] and not cmds.referenceQuery(
@@ -786,14 +862,10 @@ class HoverButton(QPushButton):
 
     def _is_valid_offset(self, candidate):
         parents = cmds.listRelatives(candidate, parent=True, fullPath=True)
-        return parents and self.camera in cmds.listRelatives(
-            parents[0].split("|")[1], children=True
-        )
+        return parents and self.camera in cmds.listRelatives(parents[0].split("|")[1], children=True)
 
     def _update_offset_reference(self, candidate, offset_attr):
-        type_ref = (
-            f"['{cmds.objectType(candidate)}', '{cmds.ls(candidate, uuid=True)[0]}']"
-        )
+        type_ref = f"['{cmds.objectType(candidate)}', '{cmds.ls(candidate, uuid=True)[0]}']"
         cmds.setAttr(offset_attr, type_ref, type="string")
 
     def _find_child_locator(self):
@@ -830,9 +902,7 @@ class HorizontalScrollArea(QScrollArea):
     def wheelEvent(self, event):
         if event.type() == QWheelEvent.Wheel:
             delta = event.angleDelta().y() / 120  # Normalizing delta
-            self.horizontalScrollBar().setValue(
-                self.horizontalScrollBar().value() - (delta * 30)
-            )
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - (delta * 30))
             event.accept()
         super(HorizontalScrollArea, self).wheelEvent(event)
 
@@ -887,14 +957,10 @@ class Attributes(QDialog):
     def create_widgets(self):
         self.focal_length_slider = QSlider(Qt.Horizontal)
         self.focal_length_slider.setRange(2500, 500000)
-        self.focal_length_slider.setValue(
-            int(round(cmds.getAttr(self.cam + ".fl") * 1000))
-        )
+        self.focal_length_slider.setValue(int(round(cmds.getAttr(self.cam + ".fl") * 1000)))
 
         self.focal_length_value = QLineEdit()
-        self.focal_length_value.setText(
-            str(self.get_float(self.focal_length_slider.value()))
-        )
+        self.focal_length_value.setText(str(self.get_float(self.focal_length_slider.value())))
         self.focal_length_value.setFixedWidth(DPI(80))
 
         self.overscan_slider = QSlider(Qt.Horizontal)
@@ -951,9 +1017,7 @@ class Attributes(QDialog):
             int(round(cmds.getAttr(self.cam + ".displayGateMaskOpacity") * 1000))
         )
         self.gate_mask_opacity_value = QLineEdit()
-        self.gate_mask_opacity_value.setText(
-            str(self.get_float(self.gate_mask_opacity_slider.value()))
-        )
+        self.gate_mask_opacity_value.setText(str(self.get_float(self.gate_mask_opacity_slider.value())))
         self.gate_mask_opacity_value.setFixedWidth(DPI(80))
 
         self.opacity_lock = self.create_lock_button()
@@ -1042,38 +1106,28 @@ class Attributes(QDialog):
             if not cmds.getAttr(attr, settable=True):
                 settable = False
                 lock_btn.setVisible(True)
-                lock_btn.clicked.connect(
-                    partial(self.disconnect_locked_attr, attr, targets, lock_btn)
-                )
+                lock_btn.clicked.connect(partial(self.disconnect_locked_attr, attr, targets, lock_btn))
 
             for target in targets:
                 value = cmds.getAttr(attr)
                 if isinstance(target, QLineEdit):
                     target.setText(str(str(self.get_float(value * 1000))))
-                    target.returnPressed.connect(
-                        partial(self.apply_modifications, self.cam, close=True)
-                    )
+                    target.returnPressed.connect(partial(self.apply_modifications, self.cam, close=True))
                 elif isinstance(target, QSlider) and not isinstance(value, list):
                     target.setValue(int(round(value * 1000)))
 
                 target.setEnabled(settable)
 
-        self.ok_btn.clicked.connect(
-            partial(self.apply_modifications, self.cam, close=True)
-        )
+        self.ok_btn.clicked.connect(partial(self.apply_modifications, self.cam, close=True))
         self.apply_btn.clicked.connect(partial(self.apply_modifications, self.cam))
         self.cancel_btn.clicked.connect(self.close)
 
         self.focal_length_slider.valueChanged.connect(
-            lambda: self.focal_length_value.setText(
-                str(self.get_float(self.focal_length_slider.value()))
-            )
+            lambda: self.focal_length_value.setText(str(self.get_float(self.focal_length_slider.value())))
         )
 
         self.overscan_slider.valueChanged.connect(
-            lambda: self.overscan_value.setText(
-                str(self.get_float(self.overscan_slider.value()))
-            )
+            lambda: self.overscan_value.setText(str(self.get_float(self.overscan_slider.value())))
         )
 
         self.gate_mask_opacity_slider.valueChanged.connect(
@@ -1250,21 +1304,13 @@ class DefaultSettings(QDialog):
 
         self.gate_mask_opacity_slider = QSlider(Qt.Horizontal)
         self.gate_mask_opacity_slider.setRange(0, 1000)
-        self.gate_mask_opacity_slider.setValue(
-            int(float(self.parentUI.default_gate_mask_opacity[0]) * 1000)
-        )
+        self.gate_mask_opacity_slider.setValue(int(float(self.parentUI.default_gate_mask_opacity[0]) * 1000))
 
         self.gate_mask_opacity_value = QLineEdit()
-        self.gate_mask_opacity_value.setText(
-            str(self.get_float(self.gate_mask_opacity_slider.value()))
-        )
+        self.gate_mask_opacity_value.setText(str(self.get_float(self.gate_mask_opacity_slider.value())))
 
-        self.gate_mask_opacity_slider.setEnabled(
-            self.parentUI.default_gate_mask_opacity[1]
-        )
-        self.gate_mask_opacity_value.setEnabled(
-            self.parentUI.default_gate_mask_opacity[1]
-        )
+        self.gate_mask_opacity_slider.setEnabled(self.parentUI.default_gate_mask_opacity[1])
+        self.gate_mask_opacity_value.setEnabled(self.parentUI.default_gate_mask_opacity[1])
 
         overscan_container = QHBoxLayout()
         overscan_container.addWidget(self.overscan_value)
@@ -1335,16 +1381,12 @@ class DefaultSettings(QDialog):
                     if isinstance(widget, QWidget):
                         checkbox.setChecked(widget.isEnabled())
                         checkbox.toggled.connect(
-                            lambda checked=checkbox.isChecked(), v=widget: v.setEnabled(
-                                checked
-                            )
+                            lambda checked=checkbox.isChecked(), v=widget: v.setEnabled(checked)
                         )
                 widget_container.addLayout(value)
             if isinstance(value, QWidget):
                 checkbox.setChecked(value.isEnabled())
-                checkbox.toggled.connect(
-                    lambda checked=checkbox.isChecked(), v=value: v.setEnabled(checked)
-                )
+                checkbox.toggled.connect(lambda checked=checkbox.isChecked(), v=value: v.setEnabled(checked))
                 widget_container.addWidget(value)
             self.main_layout.addRow(widget_container)
 
@@ -1352,9 +1394,7 @@ class DefaultSettings(QDialog):
 
     def create_connections(self):
         self.overscan_slider.valueChanged.connect(
-            lambda: self.overscan_value.setText(
-                str(self.get_float(self.overscan_slider.value()))
-            )
+            lambda: self.overscan_value.setText(str(self.get_float(self.overscan_slider.value())))
         )
 
         self.gate_mask_opacity_slider.valueChanged.connect(
@@ -1417,9 +1457,7 @@ class DefaultSettings(QDialog):
             float(self.gate_mask_opacity_value.text()),
             self.gate_mask_opacity_value.isEnabled(),
         )
-        r, g, b, _ = (
-            self.gate_mask_color_picker.palette().color(QPalette.Button).getRgb()
-        )
+        r, g, b, _ = self.gate_mask_color_picker.palette().color(QPalette.Button).getRgb()
         mask_color = (
             [round(x / 255.0, 3) for x in [r, g, b]],
             self.gate_mask_color_picker.isEnabled(),
