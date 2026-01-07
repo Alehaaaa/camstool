@@ -285,6 +285,10 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             # Make the workspaceControl call just once
             cmds.workspaceControl(self.workspace_control_name, **kwargs)
 
+    #####################################################
+    # OLD LOGIC TO DRAW A CUSTOM NATIVE MAYA SHELF TABBAR
+    #####################################################
+
     # def shelf_tabbar(self):
     #     try:
     #         if self.shelf_painter:
@@ -316,6 +320,8 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
     #     self.shelf_painter.show()
     #     tab_handle.tabBar().setVisible(True)
+
+    #####################################################
 
     """
     Setup the UI

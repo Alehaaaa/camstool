@@ -342,7 +342,7 @@ def duplicate_cam(cam, ui):
 
     cmds.undoInfo(closeChunk=True)
 
-    ui.parentUI.reload_cams_UI()
+    ui._parentUI.reload_cams_UI()
     try:
         ui.context_menu.close()
     except Exception:
