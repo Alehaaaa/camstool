@@ -638,8 +638,8 @@ def compile_version():
         cls = "CompileCams"
         method = "main"
 
-        source_path = os.path.dirname(__file__)
-        destination_path = os.path.dirname(os.path.dirname(source_path))
+        destination_path = get_root_path()
+        source_path = os.path.join(destination_path, "source", "aleha_tools")
 
         try:
             # Pass new_version as a positional argument
@@ -670,7 +670,7 @@ def changes_compiler():
     cls = "CamsToolUpdater"
     method = "run"
 
-    script_path = os.path.dirname(__file__)
+    script_path = os.path.join(get_root_path(), "source", "aleha_tools")
     try:
         changelog = _run_method(_load_module(path, name), cls, method, script_path, local_version)
         if changelog:
