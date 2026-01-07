@@ -1,20 +1,19 @@
 import difflib
-import os
-import shutil
 import zipfile
 import requests  # type: ignore
-
 import re
+import shutil
+import os
+from pathlib import Path
 
 
 class CamsToolUpdater:
     def __init__(self, script_folder=None, cams_version=None):
-        self.versions_folder = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            "versions",
-        )
-        self.script_folder = script_folder or os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "source", "aleha_tools"
+        self.project_root = Path(__file__).resolve().parents[1]
+        self.versions_folder = self.project_root / "versions"
+
+        self.script_folder = (
+            Path(script_folder) if script_folder else self.project_root / "source" / "aleha_tools"
         )
 
         self.index = None
@@ -23,17 +22,21 @@ class CamsToolUpdater:
             self.cams_version = cams_version
         else:
             self.index = -1
+            try:
+                # Assuming aleha_tools is importable
+                import aleha_tools  # type: ignore
+                import importlib
 
-            import aleha_tools  # type: ignore
+                importlib.reload(aleha_tools)
+                self.cams_version = aleha_tools.DATA["VERSION"]
+            except Exception:
+                self.cams_version = "0.0.0"
 
-            self.cams_version = aleha_tools.DATA["VERSION"]
+        # Use system temp directory
+        self.tmpFolder = Path(os.environ.get("TEMP", os.environ.get("TMPDIR", "/tmp"))) / "cams_tmp"
+        self.tmpScriptFolder = self.tmpFolder / "aleha_tools"
+        self.changes_folder = self.tmpFolder / "changes"
 
-        self.tmpFolder = os.path.join(
-            os.environ.get("TEMP", os.environ.get("TMPDIR", os.path.dirname(__file__))),
-            "cams_tmp",
-        )
-        self.tmpScriptFolder = os.path.join(self.tmpFolder, "aleha_tools")
-        self.changes_folder = os.path.join(self.tmpFolder, "changes")
         self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
         self.api_key = "AIzaSyA_3C28FIJIpsZfndPLllwUDoQeetvwFlc"
         self.model = "gemini-1.5-flash"
@@ -49,7 +52,7 @@ class CamsToolUpdater:
             return None
 
     def complete_chat(self, message):
-        url = "{}/{}:generateContent".format(self.base_url, self.model)
+        url = f"{self.base_url}/{self.model}:generateContent"
         headers = {
             "Content-Type": "application/json",
             "x-goog-api-key": self.api_key,
@@ -58,108 +61,117 @@ class CamsToolUpdater:
 
         try:
             response = requests.post(url, json=payload, headers=headers)
-            response.raise_for_status()  # Raise an exception for HTTP errors
+            response.raise_for_status()
             return self._gemini_parse(response.json())
         except requests.exceptions.RequestException as e:
             print(f"API Request Failed: {e}")
             return None
 
     def download_latest_version(self):
-        if os.path.exists(self.tmpFolder):
+        if self.tmpFolder.exists():
             shutil.rmtree(self.tmpFolder)
 
-        for f in [self.tmpFolder, self.changes_folder]:
-            os.mkdir(f)
+        self.tmpFolder.mkdir(parents=True, exist_ok=True)
+        self.changes_folder.mkdir(parents=True, exist_ok=True)
 
-        all_version_files = sorted(os.listdir(self.versions_folder))
+        if not self.versions_folder.exists():
+            print(f"Versions folder not found: {self.versions_folder}")
+            return
+
+        all_version_files = sorted([f for f in self.versions_folder.iterdir() if f.suffix == ".zip"])
+        if not all_version_files:
+            print("No version files found.")
+            return
 
         latest_file = all_version_files[-1]
-        if not self.index and os.path.splitext(latest_file)[0].endswith(str(self.cams_version)):
+
+        # If latest matches current version and we are not forcing index, use the previous one
+        if not self.index and self.cams_version in latest_file.name and len(all_version_files) > 1:
             latest_file = all_version_files[-2]
 
-        latest_file_path = os.path.join(self.versions_folder, latest_file)
+        tmpZipFile = self.tmpFolder / latest_file.name
+        shutil.copy(latest_file, tmpZipFile)
 
-        tmpZipFile = os.path.join(self.tmpFolder, latest_file)
-        output = shutil.copy(latest_file_path, tmpZipFile)
-
-        zfobj = zipfile.ZipFile(tmpZipFile)
-        for name in zfobj.namelist():
-            uncompressed = zfobj.read(name)
-            filename = os.path.join(self.tmpFolder, name)
-            if os.path.isdir(filename):
-                continue
-            d = os.path.dirname(filename)
-            if not os.path.exists(d):
-                os.mkdir(d)
-            output = open(filename, "wb")
-            output.write(uncompressed)
-            output.close()
-        zfobj.close()
-        if os.path.isfile(tmpZipFile):
-            os.remove(tmpZipFile)
-
-    def analyze_changes(self):
-        for root, subfolders, files in os.walk(self.tmpScriptFolder):
-            for file in files:
-                if not file.endswith(".py"):
+        with zipfile.ZipFile(tmpZipFile) as zfobj:
+            for name in zfobj.namelist():
+                filename = self.tmpFolder / name
+                if name.endswith("/"):  # It's a directory
+                    filename.mkdir(parents=True, exist_ok=True)
                     continue
 
-                tmp_path = os.path.join(root, file)
-                relative_path = os.path.relpath(tmp_path, self.tmpScriptFolder)
-                current_path = os.path.join(self.script_folder, relative_path)
+                filename.parent.mkdir(parents=True, exist_ok=True)
+                with open(filename, "wb") as output:
+                    output.write(zfobj.read(name))
 
-                with open(tmp_path, "r", encoding="utf-8", errors="replace") as source:
-                    with open(current_path, "r", encoding="utf-8", errors="replace") as endpoint:
-                        diff = difflib.unified_diff(
-                            source.readlines(),
-                            endpoint.readlines(),
-                            fromfile="%s (old)" % file,
-                            tofile="%s (new)" % file,
-                        )
+        if tmpZipFile.is_file():
+            tmpZipFile.unlink()
 
-                        changes = list(diff)
-                        if changes:  # If there are changes, write them to the changes log
-                            self.all_changes[file] = changes
-                            changes_file = os.path.join(
-                                self.changes_folder,
-                                os.path.splitext(relative_path)[0] + ".txt",
-                            )
-                            changes_path = os.path.dirname(changes_file)
-                            if not os.path.isdir(changes_path):
-                                os.mkdir(changes_path)
-                            with open(changes_file, "w", encoding="utf-8") as changes_log:
-                                for line in changes:
-                                    changes_log.write(line)
+    def analyze_changes(self):
+        if not self.tmpScriptFolder.exists():
+            print(f"Tmp script folder not found: {self.tmpScriptFolder}")
+            return
+
+        for tmp_path in self.tmpScriptFolder.rglob("*.py"):
+            relative_path = tmp_path.relative_to(self.tmpScriptFolder)
+            current_path = self.script_folder / relative_path
+
+            if not current_path.exists():
+                continue
+
+            with open(tmp_path, "r", encoding="utf-8", errors="replace") as source:
+                with open(current_path, "r", encoding="utf-8", errors="replace") as endpoint:
+                    diff = difflib.unified_diff(
+                        source.readlines(),
+                        endpoint.readlines(),
+                        fromfile=f"{tmp_path.name} (old)",
+                        tofile=f"{tmp_path.name} (new)",
+                    )
+
+                    changes = list(diff)
+                    if changes:
+                        self.all_changes[tmp_path.name] = changes
+                        changes_file = self.changes_folder / relative_path.with_suffix(".txt")
+                        changes_file.parent.mkdir(parents=True, exist_ok=True)
+                        with open(changes_file, "w", encoding="utf-8") as changes_log:
+                            for line in changes:
+                                changes_log.write(line)
 
     def generate_changelog(self):
+        if not self.all_changes:
+            return []
+
         formatted_changes = "\n".join(
             ["\n" + file + "\n" + "".join(changes) for file, changes in self.all_changes.items()]
         )
 
-        # Truncate the input to a maximum length (e.g., 10,000 characters)
         max_length = 10000
         if len(formatted_changes) > max_length:
-            formatted_changes = formatted_changes[:max_length] + "\n\n... (truncated due to size)"
+            formatted_changes = formatted_changes[:max_length] + "\n\n... (truncated)"
 
-        prompt = f"Make a simple changelog up to 4 lines of 30 characters each. Add an 'And more...' if there are too many. Format it like a Python list, for example: ['change.', 'change.', 'change.', 'change.']:\n\n{formatted_changes}"
+        prompt = (
+            "Make a simple changelog up to 4 lines of 30 characters each. "
+            "Add an 'And more...' if there are too many. Format it like a Python list, "
+            "for example: ['change.', 'change.', 'change.', 'change.']:\n\n"
+            f"{formatted_changes}"
+        )
 
-        gpt_log_file = os.path.join(self.tmpFolder, "gpt_log.txt")
-        if os.path.isfile(gpt_log_file):
-            os.remove(gpt_log_file)
+        gpt_log_file = self.tmpFolder / "gpt_log.txt"
+        if gpt_log_file.is_file():
+            gpt_log_file.unlink()
+
         with open(gpt_log_file, "w", encoding="utf-8") as gpt_log:
             gpt_log.write(prompt + "\n\n\n\n")
 
         response = self.complete_chat(prompt)
 
         if response is None:
-            print("API request failed. Check logs for details.")
-            return ["API request failed. Check logs for details."]
+            return ["API request failed."]
 
         with open(gpt_log_file, "a", encoding="utf-8") as gpt_log:
-            # json.dump(response, gpt_log, indent=4)
             gpt_log.write(response)
 
         try:
+            # Dangerous but keeping previous behavior
             changelog = eval(response)
         except Exception:
             changelog = response
@@ -169,10 +181,12 @@ class CamsToolUpdater:
 
         try:
             for index, change in enumerate(changelog):
+                change = change.strip()
                 if change.endswith(","):
-                    changelog[index] = change[:-1]
+                    change = change[:-1]
                 if not change.endswith("."):
-                    changelog[index] += "."
+                    change += "."
+                changelog[index] = change
         except Exception as e:
             print(f"Error formatting changelog: {e}")
 
@@ -188,3 +202,5 @@ class CamsToolUpdater:
 if __name__ == "__main__":
     updater = CamsToolUpdater()
     changelog = updater.run()
+    if changelog:
+        print("\n".join(changelog))

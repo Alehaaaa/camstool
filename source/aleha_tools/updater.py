@@ -207,12 +207,11 @@ def _check_for_updates(ui, warning=True, force=False):
 
     if not force and installed_verion == latest_version:
         if warning:
-            funcs.make_inViewMessage("<hl>" + installed_verion + "</hl>\nYou are up-to-date.")
-        return
+            return funcs.make_inViewMessage("<hl>" + installed_verion + "</hl>\nYou are up-to-date.")
 
     elif latest_version < installed_verion:
         if warning:
-            funcs.make_inViewMessage(
+            return funcs.make_inViewMessage(
                 "You are using an unpublished\nversion <hl>" + installed_verion + "</hl></div>"
             )
 
@@ -221,16 +220,13 @@ def _check_for_updates(ui, warning=True, force=False):
         is_blocked = bool(changelog.get("blocked", False))
         if is_blocked:
             if warning:
-                funcs.make_inViewMessage(
-                    "<hl>Updates are blocked</hl>\nPlease wait until the problem == solved.",
+                return funcs.make_inViewMessage(
+                    "<hl>Updates are blocked</hl>\nPlease wait until the problem is solved.",
                     "warning",
                 )
-            return
 
         last_release_notes = changelog["versions"][latest_version]
         formated_changelog = "\n".join(["- " + line for line in last_release_notes])
-
-        funcs.install_userSetup()
 
         update_available = cmds.confirmDialog(
             title="New update for " + ui.TITLE + "!",
