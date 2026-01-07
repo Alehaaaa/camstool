@@ -734,7 +734,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             self.open_github_desktop.triggered.connect(
                 partial(
                     os.startfile,
-                    r"C:\Users\alejandro\AppData\Local\GitHubDesktop\GitHubDesktop.exe",
+                    r"C:\Users\aleha\AppData\Local\GitHubDesktop\GitHubDesktop.exe",
                 )
             )
 
