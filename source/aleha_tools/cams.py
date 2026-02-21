@@ -816,7 +816,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
                     funcs.look_thru(camera, panel)
 
         # Set Icons
-        for dag in cmds.ls(type="dagContainer"):
+        for dag in cmds.ls(type="dagContainer") or []:
             icon_attr = dag + ".iconName"
             if cmds.objExists(icon_attr):
                 icon_path = cmds.getAttr(icon_attr)
@@ -946,7 +946,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
                 self.default_cam_btn.dropped.connect(partial(funcs.drag_insert_camera, cam[0], self))
 
                 self.all_displayed_buttons["main"] = self.default_cam_btn
-                if cam[0] in cmds.ls(sl=1):
+                if cam[0] in (cmds.ls(sl=1) or []):
                     self.set_selection_style(self.default_cam_btn, True)
 
             self.cams_prefs["camera"] = cam
@@ -1200,8 +1200,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             )
 
     def selection_changed_scripjob(self):
+        current_selection = cmds.ls(sl=1) or []
         for _, button in self.all_displayed_buttons.items():
-            selected = button.camera in cmds.ls(sl=1)
+            selected = button.camera in current_selection
             self.set_selection_style(button, selected)
 
     def sceneopened_scripjob(self):

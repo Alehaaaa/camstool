@@ -63,7 +63,7 @@ def get_cameras(default=False):
     non_startup_cameras = []
     startup_cameras = []
 
-    for cam in cmds.ls(type=("camera")):
+    for cam in cmds.ls(type=("camera")) or []:
         kcam = cmds.listRelatives(cam, type="transform", p=True)[0]
         if not cmds.camera(kcam, q=1, sc=True):
             non_startup_cameras.append(kcam)

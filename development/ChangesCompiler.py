@@ -60,7 +60,7 @@ class CamsToolUpdater:
                             break
 
         self.api_key = os.environ.get("GEMINI_API_KEY")
-        self.model = "gemini-1.5-flash"
+        self.model = "gemini-2.5-flash"
         self.all_changes = {}
 
     def _gemini_payload(self, message):

@@ -71,7 +71,6 @@ except ImportError:
         QPainter,
         QRegExpValidator,
         QDoubleValidator,
-        QPen,
         QColor,
         QDrag,
         QCursor,
@@ -250,6 +249,10 @@ class HoverButton(QPushButton):
     dropped = Signal(tuple)
     singleClicked = Signal()
 
+    @property
+    def camera(self):
+        return self._camera
+
     def __init__(self, camera, ui=None, width=True):
         super(HoverButton, self).__init__()
         # Variables
@@ -317,9 +320,22 @@ class HoverButton(QPushButton):
         # Draw Text
         if not self._renaming_active:
             text_x = icon_x + icon_size + DPI(4)
-            text_rect = self.rect().adjusted(text_x, 0, -DPI(4), 0)
+            padding_right = DPI(16) if current_variant in ("light", "dark") else DPI(4)
+            text_rect = self.rect().adjusted(text_x, 0, -padding_right, 0)
             painter.setPen(Qt.black)
-            painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, self.text())
+
+            elided_text = painter.fontMetrics().elidedText(self.text(), Qt.ElideRight, text_rect.width())
+            painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, elided_text)
+
+        # Draw Menu dots hint on hover
+        if current_variant in ("light", "dark") and not self._renaming_active:
+            dots_size = DPI(12)
+            dots_x = self.width() - dots_size - DPI(2)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(0, 0, 0, 150) if current_variant == "light" else Qt.black)
+            for i in range(3):
+                dy = (self.height() // 2) - DPI(4) + i * DPI(4)
+                painter.drawEllipse(QPointF(dots_x + dots_size / 2, dy), DPI(1.5), DPI(1.5))
 
     # Initialization Helpers ##################################################
     def _initialize_camera_type(self):
@@ -393,7 +409,7 @@ class HoverButton(QPushButton):
         # Click management
         self._click_timer = QTimer(self)
         self._click_timer.setSingleShot(True)
-        self._click_timer.setInterval(100)
+        self._click_timer.setInterval(250)
         self._click_timer.timeout.connect(self._emit_single_click)
 
     # Context Menu Management #################################################
@@ -402,9 +418,15 @@ class HoverButton(QPushButton):
             self._parentUI.reload_cams_UI()
             return
 
+        self._set_background_color("light")
+
         menu = OpenMenu()
         self._build_context_menu(menu)
         menu.exec_(self.mapToGlobal(pos))
+
+        if not self.underMouse():
+            self._set_background_color("base")
+            self.setIcon(self.icons["default"])
 
     def _build_context_menu(self, menu):
         self._add_title_section(menu)
@@ -445,7 +467,7 @@ class HoverButton(QPushButton):
             self.icons["deselect"], "Deselect", partial(deselect_cam, self._camera, self)
         )
 
-        is_selected = self._camera in cmds.ls(selection=True)
+        is_selected = self._camera in (cmds.ls(selection=True) or [])
         self.select_action.setVisible(not is_selected)
         self.deselect_action.setVisible(is_selected)
 
@@ -545,9 +567,19 @@ class HoverButton(QPushButton):
             self._click_timer.stop()
             self._start_pos = event.pos()
             self._set_background_color("dark")
+        elif event.button() == Qt.RightButton:
+            self._set_background_color("dark")
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
+        is_dots_click = False
+        current_variant = getattr(self, "_current_bg_variant", "base")
+        if current_variant in ("light", "dark"):
+            dots_size = DPI(12)
+            dots_x = self.width() - dots_size - DPI(4)
+            if event.pos().x() >= dots_x:
+                is_dots_click = True
+
         if event.button() == Qt.LeftButton:
             self._start_pos = None
             self._set_background_color("light")
@@ -556,12 +588,22 @@ class HoverButton(QPushButton):
             # If standard camera/locked, maybe we don't care about double click rename?
             # But consistent behavior is better.
             if self.rect().contains(event.pos()) and not self._renaming_active:
-                self._click_timer.start()
+                if is_dots_click:
+                    self._show_context_menu(event.pos())
+                else:
+                    self._click_timer.start()
+        elif event.button() == Qt.RightButton:
+            self._set_background_color("light")
 
         super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.LeftButton:
+            dots_size = DPI(12)
+            dots_x = self.width() - dots_size - DPI(4)
+            if event.pos().x() >= dots_x:
+                return  # Ignored on context menu dots
+
             self._click_timer.stop()
             self.start_inline_rename()
 
@@ -599,8 +641,8 @@ class HoverButton(QPushButton):
         if self._width:
             font_metrics = QFontMetrics(self.font())
             text_width = font_metrics.horizontalAdvance(self.text())
-            # Padding: Icon (16) + Left(4) + Mid(4) + Right(4) = 28. Using 30 for safety.
-            padding = DPI(30)
+            # Padding: Icon (16) + Left(4) + Mid(4) + Dots(12) + Right(6) = 42.
+            padding = DPI(42)
             self.setFixedWidth(text_width + padding)
 
     def _set_background_color(self, variant):

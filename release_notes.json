@@ -1,5 +1,11 @@
 {
     "versions": {
+        "0.2.1beta": [
+            "Remove custom shelf UI.",
+            "Improve cmds.ls safety.",
+            "Refactor button class.",
+            "Optimize selection checks."
+        ],
         "0.2.09beta": [
             "Refactored debug functions.",
             "And more..."

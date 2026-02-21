@@ -58,9 +58,7 @@ class multicams:
             command=lambda *args: self.create_multi(),
         )
         cmds.separator(h=8, st="none")
-        self.camera_name = cmds.textField(
-            w=self.__width__, placeholderText="Camera name"
-        )
+        self.camera_name = cmds.textField(w=self.__width__, placeholderText="Camera name")
         cmds.setParent("..")
         cmds.separator(w=self.__margin__, st="none")
         cmds.setParent("..")
@@ -72,11 +70,9 @@ class multicams:
         return [round(random.uniform(0.525, 0.750), 3) for i in range(3)]
 
     def get_cameras(self):
-        __selection__ = cmds.ls(selection=True)
+        __selection__ = cmds.ls(selection=True) or []
         self.selected_cameras = [
-            c
-            for c in __selection__
-            if c in [x.split("|")[-2] for x in cmds.ls(type=("camera"), l=True)]
+            c for c in __selection__ if c in [x.split("|")[-2] for x in cmds.ls(type=("camera"), l=True)]
         ]
         self.selected_cameras.sort()
 
@@ -105,9 +101,7 @@ class multicams:
 
         # Lock and Hide attributes
         attributes = [
-            str(c).split("|")[-1]
-            for c in cmds.listAnimatable(new_cam)
-            if "%s." % (new_cam) in str(c)
+            str(c).split("|")[-1] for c in cmds.listAnimatable(new_cam) if "%s." % (new_cam) in str(c)
         ]
         for a in attributes:
             cmds.setAttr(a, keyable=False, cb=False, lock=True)
@@ -180,14 +174,10 @@ class multicams:
         cmds.setAttr(f"{new_cam}.cams_type", type_of_camera, type="string")
 
         main_grp = cmds.createNode("dagContainer", name=f"{new_cam}_MultiCams_GRP")
-        main_attrs_to_lock = [
-            i.rsplit(".", 1)[-1] for i in cmds.listAnimatable(main_grp)
-        ]
+        main_attrs_to_lock = [i.rsplit(".", 1)[-1] for i in cmds.listAnimatable(main_grp)]
         for attr in main_attrs_to_lock:
             cmds.setAttr(main_grp + "." + attr, e=True, keyable=False, lock=True)
-        icon_path = os.path.join(
-            os.path.abspath(__file__ + "/../../"), "_icons", type_of_camera + ".png"
-        )
+        icon_path = os.path.join(os.path.abspath(__file__ + "/../../"), "_icons", type_of_camera + ".png")
         cmds.setAttr(main_grp + ".iconName", icon_path, type="string")
 
         cmds.parent(new_cam, main_grp)
