@@ -279,8 +279,8 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             # If it's floating, include the extra params
             if is_floating:
                 kwargs["tp"] = ["west", 0]
-                # kwargs["rsh"] = util.DPI(15)
-                # kwargs["rsw"] = util.DPI(50)
+                kwargs["rsh"] = util.DPI(15)
+                kwargs["rsw"] = util.DPI(50)
 
             # Make the workspaceControl call just once
             cmds.workspaceControl(self.workspace_control_name, **kwargs)
@@ -467,30 +467,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         menu_general.setTearOffEnabled(True)
         menu_bar.addMenu(menu_general)
 
-        title_label = QLabel("CAMS %s" % self.VERSION)
-        title_label.setCursor(Qt.PointingHandCursor)
-        title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        title_label.setFixedHeight(util.DPI(32))
-        title_label.setContentsMargins(util.DPI(20), 0, util.DPI(20), 0)
-        title_label.setStyleSheet(
-            """
-                                  QLabel {
-                                  font-size: """
-            + str(util.DPI(14))
-            + """px;
-                                  font-weight: bold;
-                                  color: #ececec;
-                                  }
-                                  QLabel:hover {
-                                  background-color: rgb(80, 133, 164);
-                                  }
-                                  
-                                  """
-        )
-
-        title_action = QWidgetAction(self)
-        title_action.setDefaultWidget(title_label)
-        title_action.triggered.connect(partial(webbrowser.open, DATA["AUTHOR"]["website"]))
+        title_action = widgets.MenuTitleAction(self.VERSION, self)
         menu_general.addAction(title_action)
 
         self.reload_btn = menu_general.addAction(QIcon(util.return_icon_path("refresh")), "Refresh Cameras")
@@ -816,7 +793,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
                     funcs.look_thru(camera, panel)
 
         # Set Icons
-        for dag in cmds.ls(type="dagContainer"):
+        for dag in cmds.ls(type="dagContainer") or []:
             icon_attr = dag + ".iconName"
             if cmds.objExists(icon_attr):
                 icon_path = cmds.getAttr(icon_attr)
@@ -847,10 +824,10 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         # Build up kwargs for the workspaceControl command
         kwargs = {
             "e": True,
-            # "visibleChangeCommand": self.visible_change_command,
-            # "tp": ["west", 0],
-            # "rsw": util.DPI(200),
-            # "rsh": util.DPI(15),
+            "visibleChangeCommand": self.visible_change_command,
+            "tp": ["west", 0],
+            "rsw": util.DPI(200),
+            "rsh": util.DPI(15),
         }
 
         if util.check_visible_layout(self.position[0]):
@@ -946,7 +923,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
                 self.default_cam_btn.dropped.connect(partial(funcs.drag_insert_camera, cam[0], self))
 
                 self.all_displayed_buttons["main"] = self.default_cam_btn
-                if cam[0] in cmds.ls(sl=1):
+                if cam[0] in (cmds.ls(sl=1) or []):
                     self.set_selection_style(self.default_cam_btn, True)
 
             self.cams_prefs["camera"] = cam
@@ -1114,10 +1091,6 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
     def reload_cams_UI(self):
         new_buttons = self.create_buttons()
-        if new_buttons:
-            self.line.show()
-        else:
-            self.line.hide()
 
     """
     Extra Functionality
@@ -1200,8 +1173,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             )
 
     def selection_changed_scripjob(self):
+        current_selection = cmds.ls(sl=1) or []
         for _, button in self.all_displayed_buttons.items():
-            selected = button.camera in cmds.ls(sl=1)
+            selected = button.camera in current_selection
             self.set_selection_style(button, selected)
 
     def sceneopened_scripjob(self):
