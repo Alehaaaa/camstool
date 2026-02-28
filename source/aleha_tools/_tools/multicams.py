@@ -169,11 +169,11 @@ class multicams:
             f=True,
         )
         type_of_camera = "camera_multicams"
-        if not cmds.objExists(f"{new_cam}.cams_type"):
+        if not cmds.objExists("%s.cams_type" % new_cam):
             cmds.addAttr(new_cam, ln="cams_type", dt="string")
-        cmds.setAttr(f"{new_cam}.cams_type", type_of_camera, type="string")
+        cmds.setAttr("%s.cams_type" % new_cam, type_of_camera, type="string")
 
-        main_grp = cmds.createNode("dagContainer", name=f"{new_cam}_MultiCams_GRP")
+        main_grp = cmds.createNode("dagContainer", name="%s_MultiCams_GRP" % new_cam)
         main_attrs_to_lock = [i.rsplit(".", 1)[-1] for i in cmds.listAnimatable(main_grp)]
         for attr in main_attrs_to_lock:
             cmds.setAttr(main_grp + "." + attr, e=True, keyable=False, lock=True)

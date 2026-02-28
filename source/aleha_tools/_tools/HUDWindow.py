@@ -6,17 +6,15 @@ import os
 try:
     from PySide6.QtWidgets import (  # type: ignore
         QWidget,
-        QHBoxLayout,
         QVBoxLayout,
         QLabel,
-        QPushButton,
-        QDialog,
         QFrame,
         QMessageBox,
         QLineEdit,
         QMenuBar,
         QGridLayout,
         QComboBox,
+        QSizePolicy,
     )
     from PySide6.QtGui import (  # type: ignore
         QIcon,
@@ -29,16 +27,14 @@ try:
 except ImportError:
     from PySide2.QtWidgets import (
         QWidget,
-        QHBoxLayout,
         QLabel,
-        QPushButton,
-        QDialog,
         QFrame,
         QMessageBox,
         QLineEdit,
         QMenuBar,
         QGridLayout,
         QComboBox,
+        QSizePolicy,
     )
     from PySide2.QtGui import (
         QIcon,
@@ -60,6 +56,7 @@ except ImportError:
     pass
 
 from .. import util
+from ..widgets import QFlatDialog
 
 reload(util)
 
@@ -216,11 +213,11 @@ def apply_selection(settings):
     cmds.displayColor("headsUpDisplayValues", 16, dormant=True)
 
 
-class HUDWindow(QDialog):
+class HUDWindow(QFlatDialog):
     dlg_instance = None
 
     @classmethod
-    def show_dialog(cls, parent):
+    def showUI(cls, parent):
         if not cls.dlg_instance:
             cls.dlg_instance = HUDWindow(parent)
 
@@ -234,12 +231,10 @@ class HUDWindow(QDialog):
     def __init__(self, parent=None):
         super(HUDWindow, self).__init__(parent)
         self.setWindowTitle("HUD Editor")
-        self.setFixedSize(DPI(370), DPI(265))
         self.setWindowFlags(self.windowFlags() | Qt.WindowCloseButtonHint)
 
         self.get_prefs()
-        self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.root_layout.setContentsMargins(0, 0, 0, 0)
 
         # Menu bar layout
         menu_bar = QMenuBar()
@@ -249,50 +244,35 @@ class HUDWindow(QDialog):
             self.add_menu_preset(i)
 
         menu_edit = menu_bar.addMenu("Edit")
-        new_btn = menu_edit.addAction(
-            QIcon(util.return_icon_path("select")), "Create New"
-        )
-        self.duplicate_btn = menu_edit.addAction(
-            QIcon(util.return_icon_path("duplicate")), "Duplicate"
-        )
+        new_btn = menu_edit.addAction(QIcon(util.return_icon_path("select")), "Create New")
+        self.duplicate_btn = menu_edit.addAction(QIcon(util.return_icon_path("duplicate")), "Duplicate")
         menu_edit.addSeparator()
-        self.reset_btn = menu_edit.addAction(
-            QIcon(util.return_icon_path("refresh")), "Reset Current"
-        )
-        self.delete_btn = menu_edit.addAction(
-            QIcon(util.return_icon_path("remove")), "Delete Current"
-        )
+        self.reset_btn = menu_edit.addAction(QIcon(util.return_icon_path("refresh")), "Reset Current")
+        self.delete_btn = menu_edit.addAction(QIcon(util.return_icon_path("remove")), "Delete Current")
+
+        self.root_layout.setMenuBar(menu_bar)
 
         new_btn.triggered.connect(lambda: self.new_preset())
         self.duplicate_btn.triggered.connect(lambda: self.new_preset(duplicate=True))
         self.reset_btn.triggered.connect(lambda: self.reset_preset())
         self.delete_btn.triggered.connect(lambda: self.delete_preset())
 
-        self.main_layout.setMenuBar(menu_bar)
-
         # Create a widget to hold the rectangle and comboboxes
         widget = QWidget()
-        self.main_layout.addWidget(widget)
+        self.root_layout.addWidget(widget, 1)
 
         # Create a layout for the widget
         layout = QVBoxLayout(widget)
+        layout.setContentsMargins(DPI(10), DPI(10), DPI(10), DPI(10))
 
         # Create the rectangle and add it to the layout
         rectangle = QFrame()
         rectangle.setFrameShape(QFrame.StyledPanel)
+        rectangle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         width = 350
-        rectangle.setFixedSize(DPI(width), DPI(width / 16 * 9))
-
-        ok_cancel_layout = QHBoxLayout()
-        ok_btn = QPushButton("Ok")
-        apply_btn = QPushButton("Apply")
-        cancel_btn = QPushButton("Cancel")
-        ok_cancel_layout.addWidget(ok_btn)
-        ok_cancel_layout.addWidget(apply_btn)
-        ok_cancel_layout.addWidget(cancel_btn)
+        rectangle.setMinimumSize(DPI(width), DPI(width / 16 * 9))
 
         layout.addWidget(rectangle)
-        layout.addLayout(ok_cancel_layout)
 
         # Create a layout for the comboboxes
         combo_layout = QGridLayout()
@@ -373,11 +353,28 @@ class HUDWindow(QDialog):
         # Add the combobox layout to the rectangle
         rectangle.setLayout(combo_layout)
 
-        self.refresh_ui()
+        self.setBottomBar(
+            [
+                {
+                    "name": "OK",
+                    "callback": partial(self.save_changes, close=True),
+                    "icon": util.return_icon_path("apply"),
+                },
+                {
+                    "name": "Apply",
+                    "callback": partial(self.save_changes),
+                    "icon": util.return_icon_path("apply"),
+                },
+                {
+                    "name": "Cancel",
+                    "callback": self.close,
+                    "icon": util.return_icon_path("close"),
+                },
+            ],
+            closeButton=False,
+        )
 
-        ok_btn.clicked.connect(partial(self.save_changes, close=True))
-        apply_btn.clicked.connect(self.save_changes)
-        cancel_btn.clicked.connect(self.close)
+        self.refresh_ui()
 
     def insert_items(self, combo, items):
         for item in items:
@@ -418,9 +415,7 @@ class HUDWindow(QDialog):
     def save_to_disk(self):
         with open(self.prefs_path, "w") as prefs_file:
             self.user_prefs["presets"] = self.hud_presets
-            self.user_prefs["selected"] = list(self.hud_presets.keys()).index(
-                self.get_current_preset()
-            )
+            self.user_prefs["selected"] = list(self.hud_presets.keys()).index(self.get_current_preset())
             prefs_file.write(str(self.user_prefs))
 
     def save_prefs(self):
@@ -432,9 +427,7 @@ class HUDWindow(QDialog):
 
         try:
             if current_preset != self.displayed_preset:
-                self.hud_presets[current_preset] = self.hud_presets.pop(
-                    self.displayed_preset
-                )
+                self.hud_presets[current_preset] = self.hud_presets.pop(self.displayed_preset)
                 for action in self.menu_presets.actions():
                     if action.text() == self.displayed_preset:
                         self.menu_presets.removeAction(action)
@@ -443,9 +436,7 @@ class HUDWindow(QDialog):
 
             for combo in self.all_combos:
                 current_text = getattr(self, combo).currentText()
-                self.hud_presets[current_preset][combo] = list(
-                    self.hud_items.values()
-                ).index(current_text)
+                self.hud_presets[current_preset][combo] = list(self.hud_items.values()).index(current_text)
         except Exception:
             self.preset_title.setText("")
             pass
@@ -512,8 +503,7 @@ class HUDWindow(QDialog):
         response = reset.question(
             None,
             "Reset Preset",
-            "Are you sure you want to reset '%s' to the default settings?"
-            % current_preset,
+            "Are you sure you want to reset '%s' to the default settings?" % current_preset,
             reset.Yes | reset.No,
             reset.No,
         )
@@ -542,12 +532,7 @@ class HUDWindow(QDialog):
                             current_combo = list(self.hud_items.values()).index(
                                 getattr(self, combo).currentText()
                             )
-                            if (
-                                current_combo
-                                != self.user_prefs["presets"][self.displayed_preset][
-                                    combo
-                                ]
-                            ):
+                            if current_combo != self.user_prefs["presets"][self.displayed_preset][combo]:
                                 changes = QMessageBox()
                                 response = changes.question(
                                     None,
@@ -563,9 +548,7 @@ class HUDWindow(QDialog):
                     self.preset_title.clearFocus()
                 else:
                     pref_sel = self.user_prefs["selected"]
-                    selected = (
-                        pref_sel if len(self.hud_presets.keys()) > pref_sel else -1
-                    )
+                    selected = pref_sel if len(self.hud_presets.keys()) > pref_sel else -1
                     preset = (list(self.hud_presets.keys()))[selected]
                     self.action_group.actions()[selected].setChecked(True)
                     self.preset_title.clearFocus()
@@ -573,9 +556,7 @@ class HUDWindow(QDialog):
                 for combo in self.all_combos:
                     current_selection = self.hud_presets[preset][combo]
                     getattr(self, combo).setCurrentText(
-                        self.hud_items.get(current_selection)
-                        if current_selection
-                        else self.hud_items.get(0)
+                        self.hud_items.get(current_selection) if current_selection else self.hud_items.get(0)
                     )
             if preset == "Default":
                 self.delete_btn.setEnabled(False)
@@ -593,4 +574,4 @@ class HUDWindow(QDialog):
 
 
 if __name__ == "__main__":
-    HUDWindow.show_dialog()
+    HUDWindow.showUI()

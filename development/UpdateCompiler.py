@@ -44,7 +44,7 @@ class CompileCams:
 
         self.cams_version = cams_version
 
-        self.zip_file = f"aleha_tools-{self.cams_version}.zip"
+        self.zip_file = "aleha_tools-%s.zip" % self.cams_version
         self.zip_destination_path = self.destination / "versions" / self.zip_file
         self.json_notes = self.destination / "release_notes.json"
 
@@ -84,22 +84,22 @@ class CompileCams:
             def _load_module(path, name):
                 spec = importlib.util.spec_from_file_location(name, str(path))
                 if not spec:
-                    raise ImportError(f"No module at '{path}'")
+                    raise ImportError("No module at '%s'" % path)
                 module = importlib.util.module_from_spec(spec)
                 try:
                     spec.loader.exec_module(module)
                 except Exception as e:
-                    raise ImportError(f"Error in '{path}': {e}")
+                    raise ImportError("Error in '%s': %s" % (path, e))
                 return module
 
             def _run_method(module, cls_name, method="main", *args):
                 if not hasattr(module, cls_name):
-                    raise AttributeError(f"No class '{cls_name}' in '{module.__name__}'")
+                    raise AttributeError("No class '%s' in '%s'" % (cls_name, module.__name__))
 
                 instance = getattr(module, cls_name)(*args)
 
                 if not hasattr(instance, method) or not callable(getattr(instance, method)):
-                    raise AttributeError(f"No callable method '{method}' in '{cls_name}'")
+                    raise AttributeError("No callable method '%s' in '%s'" % (method, cls_name))
                 return getattr(instance, method)()
 
             path = Path(__file__).parent / "ChangesCompiler.py"
@@ -115,7 +115,7 @@ class CompileCams:
                 self.cams_version,
             )
 
-            logging.info(f"Automatically made the changelog: {str(all_notes)}")
+            logging.info("Automatically made the changelog: %s" % str(all_notes))
 
             # Use os.startfile on windows, otherwise try subprocess or system
             if sys.platform == "win32":
@@ -141,7 +141,9 @@ class CompileCams:
         logging.info("Saved Version %s in: %s" % (self.cams_version, self.zip_destination_path))
 
         cmds.evalDeferred(
-            lambda: "from importlib import reload;import importlib;import aleha_tools.cams as cams;reload(cams); cams.show()",
+            lambda: (
+                "from importlib import reload;import importlib;import aleha_tools.cams as cams;reload(cams); cams.show()"
+            ),
             lowestPriority=True,
         )
 

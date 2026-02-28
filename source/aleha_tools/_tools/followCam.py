@@ -28,13 +28,11 @@ class followCam:
             cmds.camera(fol_cam, e=1, lt=0)
 
             for attr in ["cams_type", "cams_follow_attr"]:
-                if not cmds.objExists(f"{fol_cam}.{attr}"):
+                if not cmds.objExists("%s.%s" % (fol_cam, attr)):
                     cmds.addAttr(fol_cam, ln=attr, dt="string")
 
-            cmds.setAttr(
-                f"{cmds.listRelatives(fol_cam, shapes=True)[0]}.renderable", False
-            )
-            cmds.setAttr(f"{fol_cam}.cams_type", type_of_camera, type="string")
+            cmds.setAttr("%s.renderable" % cmds.listRelatives(fol_cam, shapes=True)[0], False)
+            cmds.setAttr("%s.cams_type" % fol_cam, type_of_camera, type="string")
 
             # Groups the camera and positions it at the selected control
             cam_grp = cmds.group((fol_cam))
@@ -58,9 +56,7 @@ class followCam:
 
             # Creates a face cam attribute
             attr_name = "FaceCamMode"
-            cmds.addAttr(
-                cam_grp, longName=attr_name, attributeType="enum", enumName="off:on"
-            )
+            cmds.addAttr(cam_grp, longName=attr_name, attributeType="enum", enumName="off:on")
             cam_grp_attr = "%s.%s" % (cam_grp, attr_name)
 
             cmds.setAttr(cam_grp_attr, keyable=True)
@@ -73,17 +69,13 @@ class followCam:
             cmds.setAttr(point_weight, 1)
             cmds.setAttr(cam_grp + ".blendParent1", 0)
             cmds.setDrivenKeyframe(point_weight, currentDriver=cam_grp_attr)
-            cmds.setDrivenKeyframe(
-                cam_grp + ".blendParent1", currentDriver=cam_grp_attr
-            )
+            cmds.setDrivenKeyframe(cam_grp + ".blendParent1", currentDriver=cam_grp_attr)
             # Set second keyframe
             cmds.setAttr(cam_grp_attr, 1)
             cmds.setAttr(point_weight, 0)
             cmds.setAttr(cam_grp + ".blendParent1", 1)
             cmds.setDrivenKeyframe(point_weight, currentDriver=cam_grp_attr)
-            cmds.setDrivenKeyframe(
-                cam_grp + ".blendParent1", currentDriver=cam_grp_attr
-            )
+            cmds.setDrivenKeyframe(cam_grp + ".blendParent1", currentDriver=cam_grp_attr)
             # Hides the blend parent
             cmds.setAttr(cam_grp + ".blendParent1", channelBox=False, keyable=False)
             # Sets face cam mode to off
@@ -98,20 +90,16 @@ class followCam:
                 _cam_grp = cam_grp
 
             cmds.setAttr(
-                f"{fol_cam}.cams_follow_attr",
+                "%s.cams_follow_attr" % fol_cam,
                 str(_cam_grp + "|FaceCamMode"),
                 type="string",
             )
 
-            main_grp = cmds.createNode("dagContainer", name=f"{fol_cam}_FOLLOW_GRP")
-            main_attrs_to_lock = [
-                i.rsplit(".", 1)[-1] for i in cmds.listAnimatable(main_grp)
-            ]
+            main_grp = cmds.createNode("dagContainer", name="%s_FOLLOW_GRP" % fol_cam)
+            main_attrs_to_lock = [i.rsplit(".", 1)[-1] for i in cmds.listAnimatable(main_grp)]
             for attr in main_attrs_to_lock:
                 cmds.setAttr(main_grp + "." + attr, e=True, keyable=False, lock=True)
-            icon_path = os.path.join(
-                os.path.abspath(__file__ + "/../../"), "_icons", type_of_camera + ".png"
-            )
+            icon_path = os.path.join(os.path.abspath(__file__ + "/../../"), "_icons", type_of_camera + ".png")
             cmds.setAttr(main_grp + ".iconName", icon_path, type="string")
 
             cmds.parent(cam_grp, main_grp)
@@ -123,6 +111,4 @@ class followCam:
             cmds.select(fol_cam, replace=True)
             cmds.undoInfo(closeChunk=True)
         elif not sel:
-            cmds.warning(
-                "First, select an object for the Follow Cam to be parented to."
-            )
+            cmds.warning("First, select an object for the Follow Cam to be parented to.")

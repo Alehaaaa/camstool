@@ -15,8 +15,11 @@ try:
         QSlider,
         QLineEdit,
         QFormLayout,
+        QVBoxLayout,
         QCheckBox,
         QColorDialog,
+        QSizePolicy,
+        QTextBrowser,
     )
     from PySide6.QtGui import (  # type: ignore
         QIcon,
@@ -25,14 +28,12 @@ try:
         QActionGroup,
         QDoubleValidator,
         QRegularExpressionValidator,
-        QPen,
         QColor,
         QDrag,
         QCursor,
         QPalette,
         QWheelEvent,
         QPixmap,
-        QImage,
         QFontMetrics,
     )
     from PySide6.QtCore import (  # type: ignore
@@ -44,6 +45,7 @@ try:
         QRegularExpression,
         QMimeData,
         QTimer,
+        QSize,
     )
 except ImportError:
     from PySide2.QtWidgets import (
@@ -63,8 +65,11 @@ except ImportError:
         QSlider,
         QLineEdit,
         QFormLayout,
+        QVBoxLayout,
         QCheckBox,
         QColorDialog,
+        QSizePolicy,
+        QTextBrowser,
     )
     from PySide2.QtGui import (
         QIcon,
@@ -77,7 +82,6 @@ except ImportError:
         QPalette,
         QWheelEvent,
         QPixmap,
-        QImage,
         QFontMetrics,
     )
     from PySide2.QtCore import (
@@ -89,13 +93,13 @@ except ImportError:
         QPoint,
         QMimeData,
         QTimer,
+        QSize,
     )
 
     QRegularExpression = QRegExp
     QRegularExpressionValidator = QRegExpValidator
 
 import maya.cmds as cmds
-import base64
 import webbrowser
 
 from functools import partial
@@ -122,10 +126,168 @@ from .funcs import (
     get_preferences_display,
     display_menu_elements,
     rename_cam,
+    check_for_updates,
 )
 from . import DATA
 
 CONTEXTUAL_CURSOR = QCursor(QPixmap(":/rmbMenu.png"), hotX=11, hotY=8)
+
+
+class IconBrightHover:
+    @staticmethod
+    def apply(btn, icon_path, brighten_amount=80):
+        btn._icon_normal = QIcon(icon_path)
+        btn._icon_hover = IconBrightHover._brighten_icon(btn._icon_normal, brighten_amount, btn.iconSize())
+
+        btn.setIcon(btn._icon_normal)
+
+        prev_enter = btn.enterEvent
+        prev_leave = btn.leaveEvent
+
+        def enterEvent(event):
+            btn.setIcon(btn._icon_hover)
+            return prev_enter(event)
+
+        def leaveEvent(event):
+            btn.setIcon(btn._icon_normal)
+            return prev_leave(event)
+
+        btn.enterEvent = enterEvent
+        btn.leaveEvent = leaveEvent
+
+    @staticmethod
+    def _brighten_icon(icon, amount, size):
+        pix = icon.pixmap(size)
+        img = pix.toImage()
+        for x in range(img.width()):
+            for y in range(img.height()):
+                c = img.pixelColor(x, y)
+                img.setPixelColor(
+                    x,
+                    y,
+                    QColor(
+                        min(c.red() + amount, 255),
+                        min(c.green() + amount, 255),
+                        min(c.blue() + amount, 255),
+                        c.alpha(),
+                    ),
+                )
+        return QIcon(QPixmap.fromImage(img))
+
+
+class FlatButton(QPushButton):
+    """
+    A customizable, flat-styled button for the bottom bar.
+    """
+
+    STYLE_SHEET = """
+        FlatButton {
+            color: %s;
+            background-color: %s;
+            border: none;
+            border-radius: %spx;
+            padding: 8px 12px;
+        }
+        FlatButton:hover {
+            background-color: %s;
+        }
+        FlatButton:pressed {
+            background-color: %s;
+        }
+    """
+
+    def __init__(self, text, color="#ffffff", background="#5D5D5D", icon_path=None, border=8, parent=None):
+        super(FlatButton, self).__init__(text, parent)
+        self.setFlat(True)
+        self.setFixedHeight(32)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        if icon_path:
+            self.setIconSize(QSize(20, 20))
+            IconBrightHover.apply(self, icon_path)
+
+        if background != "#5D5D5D":
+            base_background = int(background.lstrip("#"), 16)
+            r, g, b = (base_background >> 16) & 0xFF, (base_background >> 8) & 0xFF, base_background & 0xFF
+            hover_background = "#%s%s%s" % (min(r + 10, 255), min(g + 10, 255), min(b + 10, 255))
+            pressed_background = "#%s%s%s" % (max(r - 10, 0), max(g - 10, 0), max(b - 10, 0))
+        else:
+            hover_background = "#707070"
+            pressed_background = "#252525"
+
+        self.setStyleSheet(
+            self.STYLE_SHEET
+            % (
+                color,
+                background,
+                border * 1.4,
+                hover_background,
+                pressed_background,
+            )
+        )
+
+
+class BottomBar(QFrame):
+    """
+    A container widget for arranging FlatButtons horizontally.
+    """
+
+    def __init__(self, buttons=[], margins=8, parent=None):
+        super(BottomBar, self).__init__(parent)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(DPI(margins), DPI(margins), DPI(margins), DPI(margins))
+        layout.setSpacing(DPI(6))
+
+        for button in buttons:
+            layout.addWidget(button)
+
+
+class QFlatDialog(QDialog):
+    BORDER_RADIUS = 5
+
+    def __init__(self, parent=None):
+        super(QFlatDialog, self).__init__(parent)
+        self.setWindowFlags(self.windowFlags() | Qt.Tool)
+
+        self.root_layout = QVBoxLayout(self)
+        self.root_layout.setContentsMargins(0, 0, 0, 0)
+        self.root_layout.setSpacing(0)
+
+        self.bottomBar = None
+
+    def setBottomBar(self, buttons_config=[], closeButton=True):
+        """Dynamically creates and adds a bottom bar with custom buttons."""
+        if self.bottomBar:
+            self.bottomBar.deleteLater()
+
+        created_buttons = []
+        for config in buttons_config:
+            btn = FlatButton(
+                text=config.get("name", "Button"),
+                background=config.get("background", "#5D5D5D"),
+                icon_path=config.get("icon"),
+                border=self.BORDER_RADIUS,
+            )
+            if "callback" in config and callable(config["callback"]):
+                btn.clicked.connect(config["callback"])
+            created_buttons.append(btn)
+
+        if closeButton:
+            close_btn = FlatButton(
+                "Close",
+                background="#5D5D5D",
+                icon_path=return_icon_path("close"),
+                border=self.BORDER_RADIUS,
+            )
+            close_btn.clicked.connect(self.close)
+            created_buttons.append(close_btn)
+
+        if created_buttons:
+            self.bottomBar = BottomBar(buttons=created_buttons, parent=self)
+            self.root_layout.addWidget(self.bottomBar)
 
 
 # """
@@ -328,7 +490,7 @@ class HoverButton(QPushButton):
 
         # Draw Background
         current_variant = getattr(self, "_current_bg_variant", "base")
-        color_val = getattr(self, f"{current_variant}_color", self.base_color)
+        color_val = getattr(self, "%s_color" % current_variant, self.base_color)
 
         if self.isDown() or self.isChecked():
             color_val = self.dark_color
@@ -376,33 +538,36 @@ class HoverButton(QPushButton):
     # Initialization Helpers ##################################################
     def _initialize_camera_type(self):
         self.cam_type = "camera"
-        type_attr = f"{self._camera}.cams_type"
+        type_attr = "%s.cams_type" % self._camera
         if cmds.objExists(type_attr):
             self.cam_type = cmds.getAttr(type_attr)
 
     def _setup_styles(self):
         base_color = getcolor(self._camera)
-        self.base_color = ", ".join(str(x) for x in base_color)
-        self.light_color = ", ".join(str(x * 1.2) for x in base_color)
-        self.dark_color = ", ".join(str(x * 0.6) for x in base_color)
+        self.base_color = ", ".join(str(int(round(x))) for x in base_color)
+        self.light_color = ", ".join(str(int(round(x * 1.2))) for x in base_color)
+        self.dark_color = ", ".join(str(int(round(x * 0.6))) for x in base_color)
 
-        self.setStyleSheet(f"""
-            QPushButton {{
-                padding-left: {DPI(4)}px;
-                padding-right: {DPI(4)}px;
+        self.setStyleSheet(
+            """
+            QPushButton {
+                padding-left: %spx;
+                padding-right: %spx;
                 color: black;
-                background-color: rgb({self.base_color});
-                border-radius: {DPI(5)}px;
-            }}
-            QToolTip {{ 
-                background-color: rgb({self.light_color});
-            }}
-        """)
-        self.setStatusTip(f"Look thru {self._camera}")
+                background-color: rgb(%s);
+                border-radius: %spx;
+            }
+            QToolTip { 
+                background-color: rgb(%s);
+            }
+        """
+            % (DPI(4), DPI(4), self.base_color, DPI(5), self.light_color)
+        )
+        self.setStatusTip("Look thru %s" % self._camera)
 
     def _setup_icons(self):
         icon_map = {
-            "default": f"{self.cam_type}",
+            "default": "%s" % self.cam_type,
             "select": "select",
             "deselect": "deselect",
             "duplicate": "duplicate",
@@ -420,15 +585,18 @@ class HoverButton(QPushButton):
         self.inline_rename_field.returnPressed.connect(self._finish_inline_rename)
         self.inline_rename_field.editingFinished.connect(self._finish_inline_rename)
         # Style matches button but white background for input
-        self.inline_rename_field.setStyleSheet(f"""
-            QLineEdit {{
-                border-radius: {DPI(2)}px;
-                padding: {DPI(2)}px;
+        self.inline_rename_field.setStyleSheet(
+            """
+            QLineEdit {
+                border-radius: %spx;
+                padding: %spx;
                 color: black;
                 background-color: rgba(0, 0, 0, 50); 
                 selection-background-color: rgba(255, 255, 255, 100);
-            }}
-        """)
+            }
+        """
+            % (DPI(2), DPI(2))
+        )
         self._renaming_active = False
 
     def _setup_event_handlers(self):
@@ -484,11 +652,14 @@ class HoverButton(QPushButton):
 
         label = QLabel(self._truncated_name())
         # style
-        label.setStyleSheet(f"""
-            font-size: {DPI(14)}px; 
+        label.setStyleSheet(
+            """
+            font-size: %spx; 
             font-weight: bold;
-            padding: 0 {DPI(20)}px;
-        """)
+            padding: 0 %spx;
+        """
+            % (DPI(14), DPI(20))
+        )
         label.setFixedHeight(DPI(32))
 
         action = QWidgetAction(self)
@@ -560,7 +731,7 @@ class HoverButton(QPushButton):
 
             element_actions = []
             for label, attr, is_plugin in elements:
-                action = menu.addAction(f"     {label}")
+                action = menu.addAction("     %s" % label)
                 action.setCheckable(True)
                 state = self._get_display_state(attr, is_plugin, cam_panels, preferences)
                 action.setChecked(state)
@@ -670,7 +841,7 @@ class HoverButton(QPushButton):
 
     # UI Utilities ############################################################
     def _truncated_name(self, length=18):
-        return f"..{self._camera[-length + 2 :]}" if len(self._camera) > length else self._camera
+        return "..%s" % self._camera[-length + 2 :] if len(self._camera) > length else self._camera
 
     def _update_button_name(self):
         self.setText(self._truncated_name(10))
@@ -707,7 +878,7 @@ class HoverButton(QPushButton):
                 (0, 1, 1): ("tearoff", partial(tear_off_cam, self._camera)),
                 (0, 0, 1): (
                     "attributes",
-                    partial(Attributes.show_dialog, self._camera, self.window()),
+                    partial(Attributes.showUI, self._camera, self.window()),
                 ),
             }
 
@@ -794,7 +965,7 @@ class HoverButton(QPushButton):
             self._add_follow_actions(menu)
 
     def _add_aim_actions(self, menu):
-        offset_attr = f"{self._camera}.cams_aim_offset"
+        offset_attr = "%s.cams_aim_offset" % self._camera
         if cmds.objExists(offset_attr):
             menu.addAction(
                 QIcon(return_icon_path("aim")),
@@ -803,7 +974,7 @@ class HoverButton(QPushButton):
             )
 
     def _add_follow_actions(self, menu):
-        const_attr = f"{self._camera}.cams_follow_attr"
+        const_attr = "%s.cams_follow_attr" % self._camera
         if cmds.objExists(const_attr):
             attribute = cmds.getAttr(const_attr)
             if attribute:
@@ -820,7 +991,7 @@ class HoverButton(QPushButton):
                         camera_grp = attribute.rsplit(".", 1)[0]
                         follow_mode_attr = attribute
                     except Exception as e:
-                        print(f"Error occurred: {e}")
+                        print("Error occurred: %s" % e)
                         return
 
                 if not cmds.objExists(follow_mode_attr):
@@ -883,19 +1054,19 @@ class HoverButton(QPushButton):
         action = menu.addAction("FilmGate Mask", self._toggle_filmgate)
         action.setCheckable(True)
         action.setChecked(
-            cmds.getAttr(f"{self._camera}.displayFilmGate")
-            and cmds.getAttr(f"{self._camera}.displayGateMask")
+            cmds.getAttr("%s.displayFilmGate" % self._camera)
+            and cmds.getAttr("%s.displayGateMask" % self._camera)
         )
 
     def _toggle_filmgate(self):
-        cmds.setAttr(f"{self._camera}.displayFilmGate", self.sender().isChecked())
-        cmds.setAttr(f"{self._camera}.displayGateMask", self.sender().isChecked())
+        cmds.setAttr("%s.displayFilmGate" % self._camera, self.sender().isChecked())
+        cmds.setAttr("%s.displayGateMask" % self._camera, self.sender().isChecked())
 
     def _add_attributes_action(self, menu):
         menu.addAction(
             self.icons["attributes"],
             "Attributes",
-            partial(Attributes.show_dialog, self._camera, self.window()),
+            partial(Attributes.showUI, self._camera, self.window()),
         )
 
     def _add_defaults_action(self, menu):
@@ -926,7 +1097,7 @@ class HoverButton(QPushButton):
             cmds.select(offset_obj)
             cmds.setToolTo("moveSuperContext")
         except Exception as e:
-            cmds.error(f"Could not select Aim Locator for {self._camera}: {str(e)}")
+            cmds.error("Could not select Aim Locator for %s: %s" % (self._camera, str(e)))
 
     def _find_aim_offset_object(self, offset_attr):
         try:
@@ -951,7 +1122,7 @@ class HoverButton(QPushButton):
         return parents and self._camera in cmds.listRelatives(parents[0].split("|")[1], children=True)
 
     def _update_offset_reference(self, candidate, offset_attr):
-        type_ref = f"['{cmds.objectType(candidate)}', '{cmds.ls(candidate, uuid=True)[0]}']"
+        type_ref = "['%s', '%s']" % (cmds.objectType(candidate), cmds.ls(candidate, uuid=True)[0])
         cmds.setAttr(offset_attr, type_ref, type="string")
 
     def _find_child_locator(self):
@@ -998,11 +1169,11 @@ Attributes
 """
 
 
-class Attributes(QDialog):
+class Attributes(QFlatDialog):
     dlg_instance = None
 
     @classmethod
-    def show_dialog(cls, cams, parent):
+    def showUI(cls, cams, parent):
         try:
             cls.dlg_instance.close()
             cls.dlg_instance.deleteLater()
@@ -1030,8 +1201,10 @@ class Attributes(QDialog):
         self.setFixedSize(self.sizeHint().width(), self.sizeHint().height())
 
     def create_layouts(self):
-        self.form_layout = QFormLayout(self)
+        self.form_layout = QFormLayout()
+        self.form_layout.setContentsMargins(DPI(15), DPI(15), DPI(15), DPI(15))
         self.form_layout.setVerticalSpacing(DPI(10))
+        self.root_layout.addLayout(self.form_layout)
         self.focal_length_container = QHBoxLayout()
         self.near_clip_plane_container = QHBoxLayout()
         self.far_clip_plane_container = QHBoxLayout()
@@ -1117,6 +1290,8 @@ class Attributes(QDialog):
         self.gate_mask_color_slider.setRange(0, 255)
         self.gate_mask_color_slider.setValue(128)
         self.gate_mask_color_picker = QPushButton()
+        self.gate_mask_color_picker.setObjectName("gateMaskColorPicker")
+
         self.gate_mask_color_picker.setFixedWidth(DPI(80))
         self.gate_mask_color_picker.setFixedHeight(DPI(17))
 
@@ -1128,14 +1303,6 @@ class Attributes(QDialog):
         self.color_slider_and_picker.addWidget(self.gate_mask_color_slider)
         self.color_slider_and_picker.addStretch()
         self.color_slider_and_picker.addWidget(self.color_lock)
-
-        self.ok_btn = QPushButton("OK")
-        self.apply_btn = QPushButton("Apply")
-        self.cancel_btn = QPushButton("Cancel")
-
-        self.apply_buttons.addWidget(self.ok_btn)
-        self.apply_buttons.addWidget(self.apply_btn)
-        self.apply_buttons.addWidget(self.cancel_btn)
 
         self.form_layout.addRow("Focal Length:", self.focal_length_container)
         self.form_layout.addRow(QFrame(frameShape=QFrame.HLine))
@@ -1181,6 +1348,27 @@ class Attributes(QDialog):
             },
         ]
 
+        self.setBottomBar(
+            [
+                {
+                    "name": "OK",
+                    "callback": partial(self.apply_modifications, self.cam, close=True),
+                    "icon": return_icon_path("apply"),
+                },
+                {
+                    "name": "Apply",
+                    "callback": partial(self.apply_modifications, self.cam),
+                    "icon": return_icon_path("apply"),
+                },
+                {
+                    "name": "Cancel",
+                    "callback": self.close,
+                    "icon": return_icon_path("close"),
+                },
+            ],
+            closeButton=False,
+        )
+
     def create_connections(self):
         for widget in self.all_widgets:
             attr = self.cam + widget.get("attr", "")
@@ -1203,10 +1391,6 @@ class Attributes(QDialog):
                     target.setValue(int(round(value * 1000)))
 
                 target.setEnabled(settable)
-
-        self.ok_btn.clicked.connect(partial(self.apply_modifications, self.cam, close=True))
-        self.apply_btn.clicked.connect(partial(self.apply_modifications, self.cam))
-        self.cancel_btn.clicked.connect(self.close)
 
         self.focal_length_slider.valueChanged.connect(
             lambda: self.focal_length_value.setText(str(self.get_float(self.focal_length_slider.value())))
@@ -1296,30 +1480,40 @@ class Attributes(QDialog):
 
     def get_picker_color(self):
         style_sheet = self.gate_mask_color_picker.styleSheet()
-        bg_color = style_sheet[style_sheet.find(":") + 1 :].strip()
-        qcolor = QColor(bg_color)
-        r, g, b, _ = qcolor.getRgbF()
-        self.gate_mask_color_rgbf = [r, g, b]
+        import re
+
+        match = re.search(r"#[0-9a-fA-F]{6}", style_sheet)
+        if match:
+            bg_color = match.group(0)
+            qcolor = QColor(bg_color)
+            r, g, b, _ = qcolor.getRgbF()
+            self.gate_mask_color_rgbf = [r, g, b]
+        else:
+            self.gate_mask_color_rgbf = [0.5, 0.5, 0.5]
 
     def update_button_color(self, cam):
         rgb = cmds.getAttr(cam + ".displayGateMaskColor")[0]
         qcolor = QColor(*[int(q * 255) for q in rgb])
         h, s, v, _ = qcolor.getHsv()
         qcolor.setHsv(h, s, v)
-        self.gate_mask_color_picker.setStyleSheet("background-color: " + qcolor.name())
+        self.gate_mask_color_picker.setStyleSheet(
+            "#gateMaskColorPicker { background-color: %s; }" % qcolor.name()
+        )
         self.gate_mask_color_slider.setValue(v)
 
     def update_button_value(self, value):
         color = self.gate_mask_color_picker.palette().color(QPalette.Button)
         h, s, v, _ = color.getHsv()
         color.setHsv(h, s, value)
-        self.gate_mask_color_picker.setStyleSheet("background-color: " + color.name())
+        self.gate_mask_color_picker.setStyleSheet(
+            "#gateMaskColorPicker { background-color: %s; }" % color.name()
+        )
 
     def show_color_selector(self, button):
         initial_color = button.palette().color(QPalette.Base)
         color = QColorDialog.getColor(initial=initial_color)
         if color.isValid():
-            button.setStyleSheet("background-color: " + color.name())
+            button.setStyleSheet("#%s { background-color: %s; }" % (button.objectName(), color.name()))
             h, s, v, _ = color.getHsv()
             self.gate_mask_color_slider.setValue(v)
 
@@ -1329,11 +1523,11 @@ Default Settings
 """
 
 
-class DefaultSettings(QDialog):
+class DefaultSettings(QFlatDialog):
     dlg_instance = None
 
     @classmethod
-    def show_dialog(cls, parent):
+    def showUI(cls, parent):
         try:
             cls.dlg_instance.close()
             cls.dlg_instance.deleteLater()
@@ -1359,8 +1553,9 @@ class DefaultSettings(QDialog):
 
     def create_layouts(self):
         self.main_layout = QFormLayout()
+        self.main_layout.setContentsMargins(DPI(15), DPI(15), DPI(15), DPI(15))
         self.main_layout.setVerticalSpacing(DPI(10))
-        self.setLayout(self.main_layout)
+        self.root_layout.addLayout(self.main_layout)
 
     def create_widgets(self):
         if get_python_version() < 3:
@@ -1411,6 +1606,8 @@ class DefaultSettings(QDialog):
         self.gate_mask_color_slider.setRange(0, 255)
         self.gate_mask_color_slider.setValue(128)
         self.gate_mask_color_picker = QPushButton()
+        self.gate_mask_color_picker.setObjectName("gateMaskColorPicker")
+
         self.gate_mask_color_picker.setFixedWidth(DPI(80))
         self.gate_mask_color_picker.setFixedHeight(DPI(17))
 
@@ -1431,12 +1628,6 @@ class DefaultSettings(QDialog):
         self.far_clip_plane.setFixedWidth(DPI(80))
         self.overscan_value.setFixedWidth(DPI(80))
         self.gate_mask_opacity_value.setFixedWidth(DPI(80))
-
-        ok_close_layout = QHBoxLayout()
-        self.ok_btn = QPushButton("OK")
-        self.close_btn = QPushButton("Close")
-        ok_close_layout.addWidget(self.ok_btn)
-        ok_close_layout.addWidget(self.close_btn)
 
         layout_dict = {
             "Near Clip Plane": self.near_clip_plane,
@@ -1476,7 +1667,16 @@ class DefaultSettings(QDialog):
                 widget_container.addWidget(value)
             self.main_layout.addRow(widget_container)
 
-        self.main_layout.addRow(ok_close_layout)
+        self.setBottomBar(
+            [
+                {
+                    "name": "OK",
+                    "callback": partial(self.apply_settings, close=True),
+                    "icon": return_icon_path("apply"),
+                }
+            ],
+            closeButton=True,
+        )
 
     def create_connections(self):
         self.overscan_slider.valueChanged.connect(
@@ -1507,9 +1707,6 @@ class DefaultSettings(QDialog):
         for widget in all_widgets:
             widget.returnPressed.connect(self.apply_settings)
 
-        self.ok_btn.clicked.connect(partial(self.apply_settings, close=True))
-        self.close_btn.clicked.connect(lambda: self.close())
-
     def get_float(self, value):
         return "{:.3f}".format(value / 1000.0)
 
@@ -1518,20 +1715,24 @@ class DefaultSettings(QDialog):
         qcolor = QColor(*[int(q * 255) for q in rgb])
         h, s, v, _ = qcolor.getHsv()
         qcolor.setHsv(h, s, v)
-        self.gate_mask_color_picker.setStyleSheet("background-color: " + qcolor.name())
+        self.gate_mask_color_picker.setStyleSheet(
+            "#gateMaskColorPicker { background-color: %s; }" % qcolor.name()
+        )
         self.gate_mask_color_slider.setValue(v)
 
     def update_button_value(self, value):
         color = self.gate_mask_color_picker.palette().color(QPalette.Button)
         h, s, v, _ = color.getHsv()
         color.setHsv(h, s, value)
-        self.gate_mask_color_picker.setStyleSheet("background-color: " + color.name())
+        self.gate_mask_color_picker.setStyleSheet(
+            "#gateMaskColorPicker { background-color: %s; }" % color.name()
+        )
 
     def show_color_selector(self, button):
         initial_color = button.palette().color(QPalette.Base)
         color = QColorDialog.getColor(initial=initial_color)
         if color.isValid():
-            button.setStyleSheet("background-color: " + color.name())
+            button.setStyleSheet("#%s { background-color: %s; }" % (button.objectName(), color.name()))
             h, s, v, _ = color.getHsv()
             self.gate_mask_color_slider.setValue(v)
 
@@ -1567,38 +1768,117 @@ Coffee window
 """
 
 
-class Coffee(QMessageBox):
-    def __init__(self):
-        super(Coffee, self).__init__()
+class Coffee(QFlatDialog):
+    _object_name = "%s_coffee_dlg" % DATA["TOOL"].lower()
+    _instance = None
 
-        base64Data = "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"
-        if get_python_version() < 3:
-            image_64_decode = base64.decodestring(base64Data)
-        else:
-            image_64_decode = base64.decodebytes(base64Data.encode("utf-8"))
-        image = QImage()
-        image.loadFromData(image_64_decode, "JPG")
-        pixmap = QPixmap(image).scaledToHeight(DPI(56), Qt.SmoothTransformation)
-        self.setIconPixmap(pixmap)
+    @classmethod
+    def showUI(cls, parent):
+        if cmds.window(cls._object_name, exists=True):
+            cmds.deleteUI(cls._object_name)
 
+        cls._instance = Coffee(parent)
+        cls._instance.show()
+        cls._instance.raise_()
+        cls._instance.activateWindow()
+
+    def __init__(self, parent=None):
+        super(Coffee, self).__init__(parent)
+
+        self.setObjectName(self._object_name)
         self.setWindowTitle("About " + DATA["TOOL"].title())
-        self.setText(
-            '<p><font color="white">Version:  '
-            + DATA["VERSION"]
-            + "</p>"
-            + "By @"
-            + DATA["AUTHOR"]["name"]
-            + ' - <a href="'
-            + DATA["AUTHOR"]["instagram"]
-            + '"><font color="white">Instagram</font></a>'
-            + "<br>"
-            "My website - <a href="
-            + DATA["AUTHOR"]["website"]
-            + '><font color="white">'
-            + DATA["AUTHOR"]["website"]
-            + "</a>"
-            + "<br>"
-            "<br>"
-            "If you liked this set of tools,<br>you can send me some love!"
+
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(DPI(25), DPI(25), DPI(25), DPI(20))
+        content_layout.setSpacing(DPI(12))
+
+        # Logo Section
+        logo_label = QLabel()
+        logo_label.setAlignment(Qt.AlignCenter)
+        logo_path = return_icon_path("logo.svg")
+        logo_pixmap = QPixmap(logo_path).scaled(DPI(80), DPI(80), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        logo_label.setPixmap(logo_pixmap)
+        content_layout.addWidget(logo_label)
+
+        # Tool Name
+        tool_name = QLabel("%s Tool" % DATA["TOOL"].title())
+        tool_name.setAlignment(Qt.AlignCenter)
+        tool_name.setStyleSheet(
+            "font-size: %spx; font-weight: bold; color: #ececec; margin-top: %spx;" % (DPI(20), DPI(5))
         )
-        self.setFixedSize(DPI(400), DPI(300))
+        content_layout.addWidget(tool_name)
+
+        # Version Badge (Clickable)
+        version_btn = QPushButton("v%s" % DATA["VERSION"])
+        version_btn.setCursor(Qt.PointingHandCursor)
+        version_btn.setStyleSheet(
+            """
+            QPushButton {
+                background-color: rgba(76, 175, 80, 0.15);
+                border: 1px solid #4CAF50;
+                color: #81C784;
+                border-radius: %spx;
+                padding: %spx %spx;
+                font-size: %spx;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #4CAF50;
+                color: white;
+            }
+        """
+            % (DPI(4), DPI(4), DPI(8), DPI(11))
+        )
+        version_btn.clicked.connect(lambda: check_for_updates(parent))
+        content_layout.addWidget(version_btn, alignment=Qt.AlignCenter)
+
+        # Info Section
+        author = DATA["AUTHOR"]
+        info_text = """
+            <div style='text-align: center; color: #888888; font-size: %spx;'>
+                <p>© 2023 by <a href='%s' style='color: #cccccc; text-decoration: none;'>%s</a>. All rights reserved.</p>
+                <div style='margin-top: 10px;'>
+                    <a href='%s' style='color: #5D99C6; text-decoration: none;'>Instagram</a> &nbsp;|&nbsp; 
+                    <a href='%s' style='color: #5D99C6; text-decoration: none;'>Website</a>
+                </div>
+                <p style='margin-top: 15px; font-style: italic; color: #777777;'>
+                    If you like this tool, consider sending some love!
+                </p>
+            </div>
+        """ % (
+            DPI(11),
+            author["website"],
+            author["name"],
+            author["instagram"],
+            author["website"],
+        )
+        # Combine info text and style into one HTML document
+        full_info_html = (
+            """
+            <style>
+                a { color: #5D99C6; text-decoration: none; }
+                a:hover { color: #A0C8EA; }
+            </style>
+            <div style='text-align: center;'>
+                %s
+            </div>
+        """
+            % info_text
+        )
+
+        info_browser = QTextBrowser()
+        info_browser.setHtml(full_info_html)
+        info_browser.setReadOnly(True)
+        info_browser.setFrameShape(QFrame.NoFrame)
+        info_browser.setStyleSheet("background: transparent;")
+        info_browser.viewport().setStyleSheet("background: transparent;")
+        info_browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        info_browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        info_browser.setOpenExternalLinks(True)
+        info_browser.setFocusPolicy(Qt.NoFocus)
+
+        content_layout.addWidget(info_browser)
+        self.root_layout.addWidget(content_widget)
+
+        self.setBottomBar(closeButton=True)

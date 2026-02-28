@@ -162,7 +162,7 @@ def save_display_to_cam(cam, commands=None):
         for attr, plugin, state in commands:
             prefs[attr] = (plugin, state)
 
-    cmds.setAttr(f"{cam}.cams_display", str(prefs), type="string")
+    cmds.setAttr("%s.cams_display" % cam, str(prefs), type="string")
 
 
 def display_menu_elements(commands=False):
@@ -569,7 +569,7 @@ def run_tools(tool, ui=None):
 
         if ui:
             tool_instance = getattr(tool_module, tool)()
-            tool_instance.show_dialog(ui)
+            tool_instance.showUI(ui)
         else:
             getattr(tool_module, tool)()
 
@@ -588,24 +588,24 @@ def check_author():
 def _load_module(path, name):
     spec = importlib.util.spec_from_file_location(name, str(path))
     if not spec:
-        raise ImportError(f"No module at '{path}'")
+        raise ImportError("No module at '%s'" % path)
     module = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(module)
     except Exception as e:
-        raise ImportError(f"Error in '{path}': {e}")
+        raise ImportError("Error in '%s': %s" % (path, e))
     return module
 
 
 def _run_method(module, cls_name, method="main", *args):
     if not hasattr(module, cls_name):
-        raise AttributeError(f"No class '{cls_name}' in '{module.__name__}'")
+        raise AttributeError("No class '%s' in '%s'" % (cls_name, module.__name__))
 
     # Remove os.path.dirname(__file__)
     instance = getattr(module, cls_name)(*args)
 
     if not hasattr(instance, method) or not callable(getattr(instance, method)):
-        raise AttributeError(f"No callable method '{method}' in '{cls_name}'")
+        raise AttributeError("No callable method '%s' in '%s'" % (method, cls_name))
     return getattr(instance, method)()
 
 
@@ -652,8 +652,13 @@ def compile_version():
                 new_version,
             )
 
+            cmds.evalDeferred(
+                "import aleha_tools.cams as cams;from importlib import reload;reload(cams);cams.show()",
+                lowestPriority=True,
+            )
+
         except (ImportError, AttributeError) as e:
-            print(f"Compile Error: {e}")
+            print("Compile Error: %s" % e)
 
 
 def changes_compiler():
@@ -676,4 +681,4 @@ def changes_compiler():
         if changelog:
             cmds.confirmDialog(m="- " + "\n- ".join(changelog))
     except (ImportError, AttributeError) as e:
-        print(f"Changelog Error: {e}")
+        print("Changelog Error: %s" % e)

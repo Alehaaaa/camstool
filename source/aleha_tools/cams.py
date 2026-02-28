@@ -10,7 +10,6 @@ cams.show()
 
 import os
 import sys
-import webbrowser
 import maya.OpenMayaUI as omui
 import maya.cmds as cmds
 from functools import partial
@@ -608,7 +607,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             QIcon(util.return_icon_path("warning")), "Reset All Settings"
         )
         system_menu.addSeparator()
-        self.close_btn = system_menu.addAction(QIcon(util.return_icon_path("close")), "Close")
+        self.close_btn = system_menu.addAction(QIcon(util.return_icon_path("close_menu")), "Close")
         self.uninstall_btn = system_menu.addAction(QIcon(util.return_icon_path("remove")), "Uninstall")
 
     def change_startup_run_cams(self, state):
@@ -1048,7 +1047,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             pass
 
         self.settings_window = widgets.DefaultSettings
-        self.settings_window.show_dialog(self)
+        self.settings_window.showUI(self)
 
     def apply_camera_default(self, cam, button=None):
         parameters = {
@@ -1090,15 +1089,14 @@ class UI(MayaQWidgetDockableMixin, QDialog):
                     del item
 
     def reload_cams_UI(self):
-        new_buttons = self.create_buttons()
+        self.create_buttons()
 
     """
     Extra Functionality
     """
 
     def coffee(self):
-        coffee_dialog = widgets.Coffee()
-        coffee_dialog.exec_()
+        widgets.Coffee.showUI(self)
 
     def resizeEvent(self, event):
         def get_qt():

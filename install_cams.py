@@ -6,7 +6,7 @@ import zipfile
 import urllib.request
 import urllib.error
 import importlib
-import traceback  # For detailed error printing
+import traceback
 
 
 class Installer:
@@ -26,7 +26,6 @@ class Installer:
         # --- Progress Bar Setup ---
         gMainProgressBar = None
         try:
-            # Get the main progress bar control name
             gMainProgressBar = mel.eval("$tmp = $gMainProgressBar")
         except Exception:
             gMainProgressBar = None
@@ -40,19 +39,16 @@ class Installer:
                 gMainProgressBar,
                 edit=True,
                 beginProgress=True,
-                isInterruptable=True,  # Allow user cancellation
+                isInterruptable=True,
                 status="Starting Installation...",
                 maxValue=max_progress,
             )
         else:
-            print("Starting Installation...")  # Fallback print
+            print("Starting Installation...")
 
         mayaPath = os.environ.get("MAYA_APP_DIR")
         if not mayaPath or not os.path.isdir(mayaPath):
-            # Use cmds.warning for non-fatal issues if possible, error for fatal ones
-            cmds.error(
-                "Fatal: Could not determine MAYA_APP_DIR or path does not exist."
-            )
+            cmds.error("Fatal: Could not determine MAYA_APP_DIR or path does not exist.")
 
         scriptPath = os.path.join(mayaPath, "scripts")
         toolsFolder = os.path.join(scriptPath, "aleha_tools")
@@ -60,9 +56,7 @@ class Installer:
 
         try:  # Main try block for installation logic
             # --- Environment and Path Setup (Step 1) ---
-            if gMainProgressBar and cmds.progressBar(
-                gMainProgressBar, query=True, isCancelled=True
-            ):
+            if gMainProgressBar and cmds.progressBar(gMainProgressBar, query=True, isCancelled=True):
                 return  # Check for cancellation
             current_step += 1
             if gMainProgressBar:
@@ -76,9 +70,7 @@ class Installer:
                 print("Checking Maya environment...")
 
             # --- Clean up old specific files (Step 2) ---
-            if gMainProgressBar and cmds.progressBar(
-                gMainProgressBar, query=True, isCancelled=True
-            ):
+            if gMainProgressBar and cmds.progressBar(gMainProgressBar, query=True, isCancelled=True):
                 return
             current_step += 1
             if gMainProgressBar:
@@ -91,22 +83,17 @@ class Installer:
             else:
                 print("Cleaning old tool files...")
 
-            old_files = [f"{tool}_pyside2.py", f"{tool}_pyside2.pyc"]
-            # print("Checking for old specific files...") # Redundant with status
+            old_files = ["%s_pyside2.py" % tool, "%s_pyside2.pyc" % tool]
             for file_name in old_files:
                 file_path = os.path.join(scriptPath, file_name)
                 if os.path.isfile(file_path):
                     try:
                         os.remove(file_path)
                     except OSError as e:
-                        cmds.warning(
-                            f"Could not remove old file {file_path}: {e}"
-                        )  # Use warning
+                        cmds.warning("Could not remove old file %s: %s" % (file_path, e))
 
             # --- Clean up temporary download file (Step 3) ---
-            if gMainProgressBar and cmds.progressBar(
-                gMainProgressBar, query=True, isCancelled=True
-            ):
+            if gMainProgressBar and cmds.progressBar(gMainProgressBar, query=True, isCancelled=True):
                 return
             current_step += 1
             if gMainProgressBar:
@@ -123,17 +110,13 @@ class Installer:
                 try:
                     os.remove(tmpZipFile)
                 except OSError as e:
-                    cmds.warning(
-                        f"Could not remove existing temporary file {tmpZipFile}: {e}"
-                    )
+                    cmds.warning("Could not remove existing temporary file %s: %s" % (tmpZipFile, e))
 
             # --- Clean up target tools folder (Step 4) ---
-            if gMainProgressBar and cmds.progressBar(
-                gMainProgressBar, query=True, isCancelled=True
-            ):
+            if gMainProgressBar and cmds.progressBar(gMainProgressBar, query=True, isCancelled=True):
                 return
             current_step += 1
-            status_msg = f"Cleaning target folder: {os.path.basename(toolsFolder)}..."
+            status_msg = "Cleaning target folder: %s..." % os.path.basename(toolsFolder)
             if gMainProgressBar:
                 cmds.progressBar(gMainProgressBar, edit=True, step=1, status=status_msg)
             else:
@@ -150,19 +133,15 @@ class Installer:
                         elif os.path.isdir(item_path):
                             shutil.rmtree(item_path)
                     except Exception as e:
-                        cmds.warning(f"Could not remove item {item_path}: {e}")
+                        cmds.warning("Could not remove item %s: %s" % (item_path, e))
 
-            # --- Download (Step 5 & 6) ---
-            if gMainProgressBar and cmds.progressBar(
-                gMainProgressBar, query=True, isCancelled=True
-            ):
+            # --- Download (Step 5) ---
+            if gMainProgressBar and cmds.progressBar(gMainProgressBar, query=True, isCancelled=True):
                 return
             current_step += 1
-            status_msg = f"Downloading tool from {url}..."
+            status_msg = "Downloading tool from %s..." % url
             if gMainProgressBar:
-                cmds.progressBar(
-                    gMainProgressBar, edit=True, step=1, status=status_msg
-                )  # Step for starting download
+                cmds.progressBar(gMainProgressBar, edit=True, step=1, status=status_msg)
             else:
                 print(status_msg)
 
@@ -196,63 +175,57 @@ class Installer:
                                 downloaded_size += len(chunk)
 
                                 if total_size > 0 and gMainProgressBar:
-                                    progress_percent = int(
-                                        100 * downloaded_size / total_size
-                                    )
-                                    current_progress_value = current_step + (
-                                        progress_percent / 100.0
-                                    )
+                                    progress_percent = int(100 * downloaded_size / total_size)
+                                    current_progress_value = current_step + (progress_percent / 100.0)
                                     cmds.progressBar(
                                         gMainProgressBar,
                                         edit=True,
                                         progress=int(current_progress_value),
-                                        status=f"Downloading... {progress_percent}%",
+                                        status="Downloading... %s%%" % progress_percent,
                                     )
                                 elif total_size == 0 and gMainProgressBar:
                                     cmds.progressBar(
                                         gMainProgressBar,
                                         edit=True,
-                                        status=f"Downloading... {downloaded_size // 1024} KB",
+                                        status="Downloading... %s KB" % (downloaded_size // 1024),
                                     )
                     else:
                         raise RuntimeError(
-                            f"Network error during download (HTTP Status: {response.status}) from {url}"
+                            "Network error during download (HTTP Status: %s) from %s" % (response.status, url)
                         )
 
             except urllib.error.URLError as e:
-                raise RuntimeError(f"Network error during download from {url}: {e}")
+                raise RuntimeError("Network error during download from %s: %s" % (url, e))
             except TimeoutError:
-                raise RuntimeError(f"Network timeout during download from {url}")
+                raise RuntimeError("Network timeout during download from %s" % url)
             except Exception as e:
-                raise RuntimeError(f"An unexpected error occurred during download: {e}")
+                raise RuntimeError("An unexpected error occurred during download: %s" % e)
 
             # Download complete (Step 6)
             current_step += 1
-            status_msg = f"Download complete ({downloaded_size // 1024} KB)."
+            status_msg = "Download complete (%s KB)." % (downloaded_size // 1024)
             if gMainProgressBar:
                 cmds.progressBar(
                     gMainProgressBar,
                     edit=True,
                     progress=current_step,
                     status=status_msg,
-                )  # Ensure progress hits step marker
+                )
             else:
                 print(status_msg)
 
-            # --- Extract (Step 7 & 8) ---
-            if gMainProgressBar and cmds.progressBar(
-                gMainProgressBar, query=True, isCancelled=True
-            ):
+            # Extract (Step 7)
+            if gMainProgressBar and cmds.progressBar(gMainProgressBar, query=True, isCancelled=True):
                 return
             current_step += 1
-            status_msg = f"Extracting files to {os.path.basename(scriptPath)}..."
+            status_msg = "Extracting files to %s..." % os.path.basename(scriptPath)
             if gMainProgressBar:
                 cmds.progressBar(
                     gMainProgressBar,
                     edit=True,
                     progress=current_step,
                     status=status_msg,
-                )  # Step for starting extraction
+                )
             else:
                 print(status_msg)
 
@@ -261,31 +234,26 @@ class Installer:
                     members_to_extract = []
                     for member_info in zfobj.infolist():
                         path_parts = member_info.filename.lower().split(os.sep)
-                        # Skip directories themselves, and filter prefs
                         if not member_info.is_dir() and "_prefs" not in path_parts:
                             members_to_extract.append(member_info.filename)
 
                     if not members_to_extract:
-                        cmds.warning(
-                            "No files found in the zip archive to extract (after filtering)."
-                        )
+                        cmds.warning("No files found in the zip archive to extract (after filtering).")
 
-                    # extractall is one operation, hard to show granular progress without manual loop
                     zfobj.extractall(path=scriptPath, members=members_to_extract)
 
             except zipfile.BadZipFile:
-                file_size = (
-                    os.path.getsize(tmpZipFile) if os.path.exists(tmpZipFile) else 0
-                )
+                file_size = os.path.getsize(tmpZipFile) if os.path.exists(tmpZipFile) else 0
                 raise RuntimeError(
-                    f"Downloaded file ({tmpZipFile}, size: {file_size} bytes) is not a valid ZIP archive."
+                    "Downloaded file (%s, size: %s bytes) is not a valid ZIP archive."
+                    % (tmpZipFile, file_size)
                 )
             except (OSError, IOError) as e:
-                raise RuntimeError(f"File system error during extraction: {e}")
+                raise RuntimeError("File system error during extraction: %s" % e)
 
             # Extraction complete (Step 8)
             current_step += 1
-            status_msg = f"Extraction complete ({len(members_to_extract)} items)."
+            status_msg = "Extraction complete (%s items)." % len(members_to_extract)
             if gMainProgressBar:
                 cmds.progressBar(
                     gMainProgressBar,
@@ -296,10 +264,8 @@ class Installer:
             else:
                 print(status_msg)
 
-            # --- Load Tool (Step 9) ---
-            if gMainProgressBar and cmds.progressBar(
-                gMainProgressBar, query=True, isCancelled=True
-            ):
+            # Load Tool (Step 9)
+            if gMainProgressBar and cmds.progressBar(gMainProgressBar, query=True, isCancelled=True):
                 return
             current_step += 1
             status_msg = "Preparing to load tool..."
@@ -329,21 +295,21 @@ toolsFolder_deferred = os.path.join(scriptPath_deferred, "aleha_tools") if scrip
 print("Deferred execution: Loading tool...") # Print inside deferred
 
 if toolsFolder_deferred and os.path.isdir(toolsFolder_deferred) and toolsFolder_deferred not in sys.path:
-    print(f"Deferred: Adding {{toolsFolder_deferred}} to sys.path")
+    print("Deferred: Adding %s to sys.path" % toolsFolder_deferred)
     sys.path.insert(0, toolsFolder_deferred)
 
 module_name = 'aleha_tools.cams'
 final_message = "Tool installation complete. Loading tool now..." # Default message
 
 try:
-    print(f"Deferred: Importing/reloading {{module_name}}")
+    print("Deferred: Importing/reloading %s" % module_name)
     if module_name in sys.modules:
         cams_module = importlib.reload(sys.modules[module_name])
     else:
         if 'aleha_tools' not in sys.modules and toolsFolder_deferred:
              print("Deferred: Importing parent package 'aleha_tools'")
              __import__('aleha_tools')
-        print(f"Deferred: Importing specific module: {{module_name}}")
+        print("Deferred: Importing specific module: %s" % module_name)
         __import__(module_name)
         cams_module = sys.modules[module_name]
 
@@ -353,21 +319,21 @@ try:
     cmds.inViewMessage(amg=final_message, pos="midCenter", fade=True)
 
 except ImportError as e:
-    print(f"Deferred Error: Could not import tool module '{{module_name}}': {{e}}")
-    print(f"Deferred sys.path: {{sys.path}}")
+    print("Deferred Error: Could not import tool module '%s': %s" % (module_name, e))
+    print("Deferred sys.path: %s" % sys.path)
     traceback.print_exc()
-    final_message = f"Installation complete, but failed to import tool: {{module_name}}. See Script Editor."
-    cmds.error(f"Failed to import tool: {{module_name}}. Check script editor for details.")
+    final_message = "Installation complete, but failed to import tool: %s. See Script Editor." % module_name
+    cmds.error("Failed to import tool: %s. Check script editor for details." % module_name)
 except AttributeError as e:
-    print(f"Deferred Error: Could not find 'welcome' function in '{{module_name}}': {{e}}")
+    print("Deferred Error: Could not find 'welcome' function in '%s': %s" % (module_name, e))
     traceback.print_exc()
-    final_message = f"Installation complete, but failed to find 'welcome' function in tool: {{module_name}}."
-    cmds.error(f"Failed to find 'welcome' function in tool: {{module_name}}.")
+    final_message = "Installation complete, but failed to find 'welcome' function in tool: %s." % module_name
+    cmds.error("Failed to find 'welcome' function in tool: %s." % module_name)
 except Exception as e:
-    print(f"Deferred Error: An unexpected error occurred loading tool: {{e}}")
+    print("Deferred Error: An unexpected error occurred loading tool: %s" % e)
     traceback.print_exc()
-    final_message = f"Installation complete, but an unexpected error occurred loading tool. See Script Editor."
-    cmds.error(f"An unexpected error occurred loading tool: {{e}}")
+    final_message = "Installation complete, but an unexpected error occurred loading tool. See Script Editor."
+    cmds.error("An unexpected error occurred loading tool: %s" % e)
 
 """,
                 lowestPriority=True,
@@ -418,26 +384,19 @@ except Exception as e:
             else:
                 print(status_msg)
 
-            # evalDeferred shows the final success message
-
         except RuntimeError as e:
-            # Catch errors raised explicitly within the try block
             if gMainProgressBar:
-                cmds.progressBar(gMainProgressBar, edit=True, status=f"Error: {e}")
-            cmds.error(f"Installation failed: {e}")  # Show error in script editor
+                cmds.progressBar(gMainProgressBar, edit=True, status="Error: %s" % e)
+            cmds.error("Installation failed: %s" % e)
 
         except Exception as e:
-            # Catch any other unexpected errors
             if gMainProgressBar:
-                cmds.progressBar(
-                    gMainProgressBar, edit=True, status=f"Unexpected Error: {e}"
-                )
-            traceback.print_exc()  # Print detailed traceback
-            cmds.error(f"An unexpected error occurred during installation: {e}")
+                cmds.progressBar(gMainProgressBar, edit=True, status="Unexpected Error: %s" % e)
+            traceback.print_exc()
+            cmds.error("An unexpected error occurred during installation: %s" % e)
 
         finally:
-            # --- Final Cleanup ---
-            # Ensure progress bar is ended
+            # Final Cleanup
             if gMainProgressBar:
                 cmds.progressBar(gMainProgressBar, edit=True, endProgress=True)
 
@@ -446,12 +405,10 @@ except Exception as e:
                 try:
                     os.remove(tmpZipFile)
                 except OSError as e:
-                    cmds.warning(
-                        f"Could not remove temporary file {tmpZipFile} after process: {e}"
-                    )
+                    cmds.warning("Could not remove temporary file %s after process: %s" % (tmpZipFile, e))
 
 
-# --- onMayaDroppedPythonFile function ---
+# onMayaDroppedPythonFile function
 def onMayaDroppedPythonFile(filePath=None):
     """
     Function called when the script is dragged and dropped into the Maya viewport.
@@ -459,24 +416,21 @@ def onMayaDroppedPythonFile(filePath=None):
 
     """try:
         import aleha_tools.cams as cams
-        return cmds.error(f"The cams tool is already installed. Please uninstall the tool and try again.")
+        return cmds.error("The cams tool is already installed. Please uninstall the tool and try again.")
     except ImportError:
         pass"""
 
     script_name = "install_cams"
     import sys
 
-    # Reload this installer script itself
     if script_name in sys.modules:
         try:
             importlib.reload(sys.modules[script_name])
         except Exception as e:
-            print(f"Warning: Could not reload installer script '{script_name}': {e}")
+            print("Warning: Could not reload installer script '%s': %s" % (script_name, e))
 
-    # Don't use try/except here, let the install method handle errors and progress bar
     installer = Installer()
     installer.install()
-    # Don't show message here, rely on messages from install() and evalDeferred()
 
 
 # if __name__ == "__main__":

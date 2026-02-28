@@ -76,7 +76,7 @@ class CamsToolUpdater:
         if not self.api_key:
             return False, "API key not found"
 
-        url = f"{self.base_url}/{self.model}:generateContent"
+        url = "%s/%s:generateContent" % (self.base_url, self.model)
         headers = {
             "Content-Type": "application/json",
             "x-goog-api-key": self.api_key,
@@ -88,7 +88,7 @@ class CamsToolUpdater:
             response.raise_for_status()
             return True, self._gemini_parse(response.json())
         except Exception as e:
-            return False, f"API Request Failed: {e}"
+            return False, "API Request Failed: %s" % e
 
     def download_latest_version(self):
         if self.tmpFolder.exists():
@@ -98,7 +98,7 @@ class CamsToolUpdater:
         self.changes_folder.mkdir(parents=True, exist_ok=True)
 
         if not self.versions_folder.exists():
-            print(f"Versions folder not found: {self.versions_folder}")
+            print("Versions folder not found: %s" % self.versions_folder)
             return
 
         all_version_files = sorted([f for f in self.versions_folder.iterdir() if f.suffix == ".zip"])
@@ -131,7 +131,7 @@ class CamsToolUpdater:
 
     def analyze_changes(self):
         if not self.tmpScriptFolder.exists():
-            print(f"Tmp script folder not found: {self.tmpScriptFolder}")
+            print("Tmp script folder not found: %s" % self.tmpScriptFolder)
             return
 
         for tmp_path in self.tmpScriptFolder.rglob("*.py"):
@@ -146,8 +146,8 @@ class CamsToolUpdater:
                     diff = difflib.unified_diff(
                         source.readlines(),
                         endpoint.readlines(),
-                        fromfile=f"{tmp_path.name} (old)",
-                        tofile=f"{tmp_path.name} (new)",
+                        fromfile="%s (old)" % tmp_path.name,
+                        tofile="%s (new)" % tmp_path.name,
                     )
 
                     changes = list(diff)
@@ -175,7 +175,7 @@ class CamsToolUpdater:
             "Make a simple changelog up to 4 lines of 30 characters each. "
             "Add an 'And more...' if there are too many. Format it like a Python list, "
             "for example: ['change.', 'change.', 'change.', 'change.']:\n\n"
-            f"{formatted_changes}"
+            "%s" % formatted_changes
         )
 
         gpt_log_file = self.tmpFolder / "gpt_log.txt"
@@ -211,7 +211,7 @@ class CamsToolUpdater:
                     change += "."
                 changelog[index] = change
         except Exception as e:
-            print(f"Error formatting changelog: {e}")
+            print("Error formatting changelog: %s" % e)
 
         return changelog
 

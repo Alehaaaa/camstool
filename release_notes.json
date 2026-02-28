@@ -1,5 +1,14 @@
 {
     "versions": {
+        "0.2.4beta": [
+            "Refactored About Dialog and other components.",
+            "Refactor: f-strings removed.",
+            "Improved update experience."
+        ],
+        "0.2.3beta": [
+            "Remove QPen import.",
+            "Round color values."
+        ],
         "0.2.2beta": [
             "Fixed docking issues"
         ],

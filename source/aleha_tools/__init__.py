@@ -1,13 +1,10 @@
 """
 
 TO-DO:
-    - Make it Python 2 compatible
+    - Make it fully Python 2 compatible
 
     IDEAS:
-    - Add Show Viewport presets?
-
-    WIP:
-    - Error handling for startup
+    - Add HeadsUpDisplay presets
 
     FUTURE:
 
@@ -15,7 +12,7 @@ TO-DO:
 
 DATA = {
     "TOOL": "cams",
-    "VERSION": "0.2.2beta",
+    "VERSION": "0.2.4beta",
     "AUTHOR": {
         "name": "Alehaaa",
         "website": "https://alehaaaa.github.io",

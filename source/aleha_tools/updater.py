@@ -148,11 +148,11 @@ def get_latest_version():
             return text
 
     except urllib.error.URLError as e:
-        util.make_inViewMessage(f"Network error: {e}")
+        util.make_inViewMessage("Network error: %s" % e)
     except TimeoutError:
         util.make_inViewMessage("Connection timed out.")
     except Exception as e:
-        util.make_inViewMessage(f"Unexpected error: {e}")
+        util.make_inViewMessage("Unexpected error: %s" % e)
 
     return None
 
@@ -176,7 +176,7 @@ def _get_changelog():
                 util.make_inViewMessage(NO_SERVER_ERROR % (response.status, error_message))
                 return None
     except urllib.error.URLError as e:
-        util.make_inViewMessage(f"Network error: {e}")
+        util.make_inViewMessage("Network error: %s" % e)
         return None
     except TimeoutError:
         util.make_inViewMessage("Connection timed out.")
