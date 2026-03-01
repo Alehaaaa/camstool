@@ -58,21 +58,21 @@ class DialogButton(dict):
         if name_or_dict is not None:
             if isinstance(name_or_dict, (str, bytes)):
                 kwargs["name"] = name_or_dict
-                super(DialogButton, self).__init__(**kwargs)
+                super().__init__(**kwargs)
             elif isinstance(name_or_dict, dict):
-                super(DialogButton, self).__init__(name_or_dict, **kwargs)
+                super().__init__(name_or_dict, **kwargs)
             else:
-                super(DialogButton, self).__init__(**kwargs)
+                super().__init__(**kwargs)
         else:
-            super(DialogButton, self).__init__(**kwargs)
+            super().__init__(**kwargs)
 
     def copy(self):
-        return DialogButton(super(DialogButton, self).copy())
+        return DialogButton(super().copy())
 
     def __eq__(self, other):
         if isinstance(other, (str, bytes)):
             return self.get("name") == other
-        return super(DialogButton, self).__eq__(other)
+        return super().__eq__(other)
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -83,15 +83,15 @@ class DialogButton(dict):
         if isinstance(other, list):
             return DialogButtonList([self] + other)
         # Support dict union for Python 3.9+ if available
-        if hasattr(super(DialogButton, self), "__or__"):
-            return super(DialogButton, self).__or__(other)
+        if hasattr(super(), "__or__"):
+            return super().__or__(other)
         return NotImplemented
 
     def __ror__(self, other):
         if isinstance(other, list):
             return DialogButtonList(other + [self])
-        if hasattr(super(DialogButton, self), "__ror__"):
-            return super(DialogButton, self).__ror__(other)
+        if hasattr(super(), "__ror__"):
+            return super().__ror__(other)
         return NotImplemented
 
 
@@ -113,7 +113,9 @@ class HoverableIcon:
     def apply(btn, icon_path, highlight=False, brighten_amount=80):
         base_icon = QIcon(icon_path)
         if highlight:
-            btn._icon_normal = HoverableIcon._color_icon(base_icon, HoverableIcon.HIGHLIGHT_HEX, btn.iconSize())
+            btn._icon_normal = HoverableIcon._color_icon(
+                base_icon, HoverableIcon.HIGHLIGHT_HEX, btn.iconSize()
+            )
         else:
             btn._icon_normal = base_icon
 
@@ -216,7 +218,7 @@ class FlatButton(QPushButton):
         highlight=False,
         parent=None,
     ):
-        super(FlatButton, self).__init__(text, parent)
+        super().__init__(text, parent)
         self.setFlat(True)
         self.setFixedHeight(32)
         self.setCursor(Qt.PointingHandCursor)
@@ -274,7 +276,7 @@ class BottomBar(QFrame):
     """
 
     def __init__(self, buttons=[], margins=8, parent=None):
-        super(BottomBar, self).__init__(parent)
+        super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         layout = QHBoxLayout(self)
@@ -302,7 +304,7 @@ class QFlatDialog(QDialog):
         if parent is None:
             parent = get_maya_qt()
 
-        super(QFlatDialog, self).__init__(parent)
+        super().__init__(parent)
         self.setWindowFlags(self.windowFlags() | Qt.Tool)
 
         self.root_layout = QVBoxLayout(self)
@@ -360,7 +362,7 @@ class QFlatDialog(QDialog):
             if self._default_button:
                 self._default_button.click()
                 return
-        super(QFlatDialog, self).keyPressEvent(event)
+        super().keyPressEvent(event)
 
     def setBottomBar(self, buttons=None, closeButton=False, highlight=None):
         """Dynamically creates and adds a bottom bar with custom buttons."""
@@ -410,9 +412,7 @@ class QFlatConfirmDialog(QFlatDialog):
         exclusive=True,
         parent=None,
     ):
-        super(QFlatConfirmDialog, self).__init__(
-            parent=parent, buttons=buttons, highlight=highlight, closeButton=closeButton
-        )
+        super().__init__(parent=parent, buttons=buttons, highlight=highlight, closeButton=closeButton)
 
         # Ensure we are a Dialog but inherit Tool if parent has it
         new_flags = self.windowFlags() | Qt.Dialog
@@ -441,7 +441,9 @@ class QFlatConfirmDialog(QFlatDialog):
             pix = QPixmap(icon)
             if not pix.isNull():
                 icon_dim = DPI(80)
-                icon_label.setPixmap(pix.scaled(icon_dim, icon_dim, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                icon_label.setPixmap(
+                    pix.scaled(icon_dim, icon_dim, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                )
                 icon_label.setFixedSize(icon_dim, icon_dim)
                 content_layout.addWidget(icon_label, 0, Qt.AlignTop)
 
@@ -495,7 +497,15 @@ class QFlatConfirmDialog(QFlatDialog):
 
     @classmethod
     def question(
-        cls, parent, window, message, buttons=None, highlight=None, closeButton=False, title="Are you sure?", **kwargs
+        cls,
+        parent,
+        window,
+        message,
+        buttons=None,
+        highlight=None,
+        closeButton=False,
+        title="Are you sure?",
+        **kwargs,
     ):
         """Static-like helper to create and show a confirm dialog."""
         if buttons is None:

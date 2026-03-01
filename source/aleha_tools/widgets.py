@@ -32,6 +32,7 @@ try:
         QWheelEvent,
         QPixmap,
         QFontMetrics,
+        QPen,
     )
     from PySide6.QtCore import (  # type: ignore
         Qt,
@@ -76,6 +77,7 @@ except ImportError:
         QWheelEvent,
         QPixmap,
         QFontMetrics,
+        QPen,
     )
     from PySide2.QtCore import (
         Qt,
@@ -134,65 +136,65 @@ CONTEXTUAL_CURSOR = QCursor(QPixmap(":/rmbMenu.png"), hotX=11, hotY=8)
 # """
 
 
-# class ShelfPainter(QWidget):
-#     def __init__(self, parent=None):
-#         super(ShelfPainter, self).__init__(parent)
-#         self.tabbar_width = DPI(16)
-#         self.line_thickness = DPI(1)
-#         self.line_color = QColor(130, 130, 130)
-#         self.margin = DPI(4)
-#         self.center = DPI(5)
-#         self.offset = DPI(1.5)
+class ShelfPainter(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.tabbar_width = DPI(16)
+        self.line_thickness = DPI(1)
+        self.line_color = QColor(130, 130, 130)
+        self.margin = DPI(4)
+        self.center = DPI(5)
+        self.offset = DPI(1.5)
 
-#     def paintEvent(self, event):
-#         self.setAttribute(Qt.WA_TransparentForMouseEvents)
+    def paintEvent(self, event):
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
 
-#         color = self.palette().color(self.backgroundRole())
-#         painter = QPainter(self)
-#         painter.setPen(QPen(color, self.tabbar_width))
-#         painter.drawLine(self.tabbar_width // 2, 0, self.tabbar_width // 2, self.height())
+        color = self.palette().color(self.backgroundRole())
+        painter = QPainter(self)
+        painter.setPen(QPen(color, self.tabbar_width))
+        painter.drawLine(self.tabbar_width // 2, 0, self.tabbar_width // 2, self.height())
 
-#         pen = QPen(self.line_color)
-#         pen.setWidth(1)  # Line width of 1 pixel
-#         pen.setStyle(Qt.CustomDashLine)  # Enable custom dash pattern
-#         pen.setDashPattern([0.01, DPI(3)])  # 1 pixel dot, 1 pixel space
-#         painter.setPen(pen)
+        pen = QPen(self.line_color)
+        pen.setWidth(1)  # Line width of 1 pixel
+        pen.setStyle(Qt.CustomDashLine)  # Enable custom dash pattern
+        pen.setDashPattern([0.01, DPI(3)])  # 1 pixel dot, 1 pixel space
+        painter.setPen(pen)
 
-#         painter.drawLine(
-#             QPointF(self.center - self.offset, self.margin / 3),
-#             QPointF(self.center - self.offset, self.height() - self.margin),
-#         )
-#         painter.drawLine(
-#             QPointF(self.center + self.offset, self.margin / 3),
-#             QPointF(self.center + self.offset, self.height() - self.margin),
-#         )
+        painter.drawLine(
+            QPointF(self.center - self.offset, self.margin / 3),
+            QPointF(self.center - self.offset, self.height() - self.margin),
+        )
+        painter.drawLine(
+            QPointF(self.center + self.offset, self.margin / 3),
+            QPointF(self.center + self.offset, self.height() - self.margin),
+        )
 
-#     def resizeEvent(self, event):
-#         self.update()
+    def resizeEvent(self, event):
+        self.update()
 
-#     def updateDrawingParameters(
-#         self,
-#         tabbar_width=None,
-#         line_thickness=None,
-#         line_color=None,
-#         margin=None,
-#         center=None,
-#         offset=None,
-#     ):
-#         """Update drawing parameters and refresh the widget."""
-#         if tabbar_width is not None:
-#             self.tabbar_width = tabbar_width.width()
-#         if line_thickness is not None:
-#             self.line_thickness = line_thickness
-#         if line_color is not None:
-#             self.line_color = line_color
-#         if margin is not None:
-#             self.margin = margin
-#         if center is not None:
-#             self.center = center
-#         if offset is not None:
-#             self.offset = offset
-#         self.update()
+    def updateDrawingParameters(
+        self,
+        tabbar_width=None,
+        line_thickness=None,
+        line_color=None,
+        margin=None,
+        center=None,
+        offset=None,
+    ):
+        """Update drawing parameters and refresh the widget."""
+        if tabbar_width is not None:
+            self.tabbar_width = tabbar_width.width()
+        if line_thickness is not None:
+            self.line_thickness = line_thickness
+        if line_color is not None:
+            self.line_color = line_color
+        if margin is not None:
+            self.margin = margin
+        if center is not None:
+            self.center = center
+        if offset is not None:
+            self.offset = offset
+        self.update()
 
 
 """
@@ -202,7 +204,7 @@ QMenu that doesn't close
 
 class MenuTitleAction(QWidgetAction):
     def __init__(self, version, parent=None):
-        super(MenuTitleAction, self).__init__(parent)
+        super().__init__(parent)
         self.version = version
         self.website = DATA["AUTHOR"]["website"]
 
@@ -291,7 +293,7 @@ class HoverButton(QPushButton):
         return self._camera
 
     def __init__(self, camera, ui=None, width=True):
-        super(HoverButton, self).__init__()
+        super().__init__()
         # Variables
         self._camera = camera
         self._parentUI = ui
@@ -506,7 +508,9 @@ class HoverButton(QPushButton):
         menu.addAction(action)
 
     def _add_selection_actions(self, menu):
-        self.select_action = menu.addAction(self.icons["select"], "Select", partial(select_cam, self._camera, self))
+        self.select_action = menu.addAction(
+            self.icons["select"], "Select", partial(select_cam, self._camera, self)
+        )
         self.deselect_action = menu.addAction(
             self.icons["deselect"], "Deselect", partial(deselect_cam, self._camera, self)
         )
@@ -891,7 +895,8 @@ class HoverButton(QPushButton):
         action = menu.addAction("FilmGate Mask", self._toggle_filmgate)
         action.setCheckable(True)
         action.setChecked(
-            cmds.getAttr("%s.displayFilmGate" % self._camera) and cmds.getAttr("%s.displayGateMask" % self._camera)
+            cmds.getAttr("%s.displayFilmGate" % self._camera)
+            and cmds.getAttr("%s.displayGateMask" % self._camera)
         )
 
     def _toggle_filmgate(self):
@@ -976,7 +981,7 @@ QScroll for the cameras layout
 
 class HorizontalScrollArea(QScrollArea):
     def __init__(self, height, parent=None):
-        super(HorizontalScrollArea, self).__init__(parent)
+        super().__init__(parent)
 
         self.setFrameStyle(QFrame.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -997,7 +1002,7 @@ class HorizontalScrollArea(QScrollArea):
             delta = event.angleDelta().y() / 120  # Normalizing delta
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - (delta * 30))
             event.accept()
-        super(HorizontalScrollArea, self).wheelEvent(event)
+        super().wheelEvent(event)
 
 
 """
@@ -1020,7 +1025,7 @@ class Attributes(QFlatDialog):
         cls.dlg_instance.show()
 
     def __init__(self, cam, parent=None):
-        super(Attributes, self).__init__(parent)
+        super().__init__(parent)
 
         self.cam = cam
 
@@ -1109,7 +1114,9 @@ class Attributes(QFlatDialog):
         # Second section: Display Attributes
         self.gate_mask_opacity_slider = QSlider(Qt.Horizontal)
         self.gate_mask_opacity_slider.setRange(0, 1000)
-        self.gate_mask_opacity_slider.setValue(int(round(cmds.getAttr(self.cam + ".displayGateMaskOpacity") * 1000)))
+        self.gate_mask_opacity_slider.setValue(
+            int(round(cmds.getAttr(self.cam + ".displayGateMaskOpacity") * 1000))
+        )
         self.gate_mask_opacity_value = QLineEdit()
         self.gate_mask_opacity_value.setText(str(self.get_float(self.gate_mask_opacity_slider.value())))
         self.gate_mask_opacity_value.setFixedWidth(DPI(80))
@@ -1225,10 +1232,14 @@ class Attributes(QFlatDialog):
         )
 
         self.gate_mask_opacity_slider.valueChanged.connect(
-            lambda: self.gate_mask_opacity_value.setText(self.get_float(self.gate_mask_opacity_slider.value()))
+            lambda: self.gate_mask_opacity_value.setText(
+                self.get_float(self.gate_mask_opacity_slider.value())
+            )
         )
 
-        self.gate_mask_color_picker.clicked.connect(lambda: self.show_color_selector(self.gate_mask_color_picker))
+        self.gate_mask_color_picker.clicked.connect(
+            lambda: self.show_color_selector(self.gate_mask_color_picker)
+        )
 
         self.gate_mask_color_slider.valueChanged.connect(
             lambda: self.update_button_value(self.gate_mask_color_slider.value())
@@ -1316,14 +1327,18 @@ class Attributes(QFlatDialog):
         qcolor = QColor(*[int(q * 255) for q in rgb])
         h, s, v, _ = qcolor.getHsv()
         qcolor.setHsv(h, s, v)
-        self.gate_mask_color_picker.setStyleSheet("#gateMaskColorPicker { background-color: %s; }" % qcolor.name())
+        self.gate_mask_color_picker.setStyleSheet(
+            "#gateMaskColorPicker { background-color: %s; }" % qcolor.name()
+        )
         self.gate_mask_color_slider.setValue(v)
 
     def update_button_value(self, value):
         color = self.gate_mask_color_picker.palette().color(QPalette.Button)
         h, s, v, _ = color.getHsv()
         color.setHsv(h, s, value)
-        self.gate_mask_color_picker.setStyleSheet("#gateMaskColorPicker { background-color: %s; }" % color.name())
+        self.gate_mask_color_picker.setStyleSheet(
+            "#gateMaskColorPicker { background-color: %s; }" % color.name()
+        )
 
     def show_color_selector(self, button):
         initial_color = button.palette().color(QPalette.Base)
@@ -1354,7 +1369,7 @@ class DefaultSettings(QFlatDialog):
         cls.dlg_instance.show()
 
     def __init__(self, parent=None):
-        super(DefaultSettings, self).__init__(parent)
+        super().__init__(parent)
 
         self._parentUI = parent
 
@@ -1474,7 +1489,9 @@ class DefaultSettings(QFlatDialog):
                     widget = value.itemAt(i).widget()
                     if isinstance(widget, QWidget):
                         checkbox.setChecked(widget.isEnabled())
-                        checkbox.toggled.connect(lambda checked=checkbox.isChecked(), v=widget: v.setEnabled(checked))
+                        checkbox.toggled.connect(
+                            lambda checked=checkbox.isChecked(), v=widget: v.setEnabled(checked)
+                        )
                 widget_container.addLayout(value)
             if isinstance(value, QWidget):
                 checkbox.setChecked(value.isEnabled())
@@ -1498,10 +1515,14 @@ class DefaultSettings(QFlatDialog):
         )
 
         self.gate_mask_opacity_slider.valueChanged.connect(
-            lambda: self.gate_mask_opacity_value.setText(self.get_float(self.gate_mask_opacity_slider.value()))
+            lambda: self.gate_mask_opacity_value.setText(
+                self.get_float(self.gate_mask_opacity_slider.value())
+            )
         )
 
-        self.gate_mask_color_picker.clicked.connect(lambda: self.show_color_selector(self.gate_mask_color_picker))
+        self.gate_mask_color_picker.clicked.connect(
+            lambda: self.show_color_selector(self.gate_mask_color_picker)
+        )
 
         self.gate_mask_color_slider.valueChanged.connect(
             lambda: self.update_button_value(self.gate_mask_color_slider.value())
@@ -1525,14 +1546,18 @@ class DefaultSettings(QFlatDialog):
         qcolor = QColor(*[int(q * 255) for q in rgb])
         h, s, v, _ = qcolor.getHsv()
         qcolor.setHsv(h, s, v)
-        self.gate_mask_color_picker.setStyleSheet("#gateMaskColorPicker { background-color: %s; }" % qcolor.name())
+        self.gate_mask_color_picker.setStyleSheet(
+            "#gateMaskColorPicker { background-color: %s; }" % qcolor.name()
+        )
         self.gate_mask_color_slider.setValue(v)
 
     def update_button_value(self, value):
         color = self.gate_mask_color_picker.palette().color(QPalette.Button)
         h, s, v, _ = color.getHsv()
         color.setHsv(h, s, value)
-        self.gate_mask_color_picker.setStyleSheet("#gateMaskColorPicker { background-color: %s; }" % color.name())
+        self.gate_mask_color_picker.setStyleSheet(
+            "#gateMaskColorPicker { background-color: %s; }" % color.name()
+        )
 
     def show_color_selector(self, button):
         initial_color = button.palette().color(QPalette.Base)
@@ -1589,7 +1614,7 @@ class Coffee(QFlatDialog):
         cls._instance.activateWindow()
 
     def __init__(self, parent=None):
-        super(Coffee, self).__init__(parent)
+        super().__init__(parent)
 
         self._parentUI = parent
 

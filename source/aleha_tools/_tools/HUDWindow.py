@@ -230,7 +230,7 @@ class HUDWindow(QFlatDialog):
             cls.dlg_instance.activateWindow()
 
     def __init__(self, parent=None):
-        super(HUDWindow, self).__init__(parent)
+        super().__init__(parent)
         self.setWindowTitle("HUD Editor")
         self.setWindowFlags(self.windowFlags() | Qt.WindowCloseButtonHint)
 
@@ -516,7 +516,9 @@ class HUDWindow(QFlatDialog):
                 if change:
                     if self.displayed_preset != "":
                         for combo in self.all_combos:
-                            current_combo = list(self.hud_items.values()).index(getattr(self, combo).currentText())
+                            current_combo = list(self.hud_items.values()).index(
+                                getattr(self, combo).currentText()
+                            )
                             if current_combo != self.user_prefs["presets"][self.displayed_preset][combo]:
                                 response = QFlatConfirmDialog.question(
                                     None,
