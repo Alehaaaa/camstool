@@ -165,8 +165,19 @@ class CompileCams:
 
         data["versions"][version] = notes
 
-        # Keep versions ordered descending
-        ordered_versions = sorted(data["versions"].items(), key=lambda x: x[0], reverse=True)
+        # Keep versions ordered descending using our robust comparison
+        try:
+            from aleha_tools.util import compare_versions
+            from functools import cmp_to_key
+
+            ordered_versions = sorted(
+                data["versions"].items(),
+                key=cmp_to_key(lambda x, y: compare_versions(x[0], y[0])),
+                reverse=True,
+            )
+        except (ImportError, Exception):
+            ordered_versions = sorted(data["versions"].items(), key=lambda x: x[0], reverse=True)
+
         data["versions"] = dict(ordered_versions)
 
         with open(json_file, "w") as file:

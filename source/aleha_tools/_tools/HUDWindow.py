@@ -359,19 +359,15 @@ class HUDWindow(QFlatDialog):
                     "name": "OK",
                     "callback": partial(self.save_changes, close=True),
                     "icon": util.return_icon_path("apply"),
+                    "highlight": True,
                 },
-                {
-                    "name": "Apply",
-                    "callback": partial(self.save_changes),
-                    "icon": util.return_icon_path("apply"),
-                },
-                {
-                    "name": "Cancel",
-                    "callback": self.close,
-                    "icon": util.return_icon_path("close"),
-                },
+                # {
+                #     "name": "Apply",
+                #     "callback": partial(self.save_changes),
+                #     "icon": util.return_icon_path("apply"),
+                # },
             ],
-            closeButton=False,
+            closeButton=True,
         )
 
         self.refresh_ui()

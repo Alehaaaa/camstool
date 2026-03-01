@@ -101,7 +101,26 @@ class CamsToolUpdater:
             print("Versions folder not found: %s" % self.versions_folder)
             return
 
-        all_version_files = sorted([f for f in self.versions_folder.iterdir() if f.suffix == ".zip"])
+        try:
+            from aleha_tools.util import compare_versions
+            from functools import cmp_to_key
+
+            def get_version_from_name(name):
+                # Extra version from 'aleha_tools-0.2.5.zip'
+                match = re.search(r"aleha_tools-(.*?)\.zip", name)
+                return match.group(1) if match else "0.0.0"
+
+            all_version_files = sorted(
+                [f for f in self.versions_folder.iterdir() if f.suffix == ".zip"],
+                key=cmp_to_key(
+                    lambda x, y: compare_versions(
+                        get_version_from_name(x.name), get_version_from_name(y.name)
+                    )
+                ),
+            )
+        except Exception:
+            all_version_files = sorted([f for f in self.versions_folder.iterdir() if f.suffix == ".zip"])
+
         if not all_version_files:
             print("No version files found.")
             return

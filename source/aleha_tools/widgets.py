@@ -5,7 +5,6 @@ try:
         QHBoxLayout,
         QLabel,
         QPushButton,
-        QDialog,
         QFrame,
         QMenu,
         QWidgetAction,
@@ -18,7 +17,6 @@ try:
         QVBoxLayout,
         QCheckBox,
         QColorDialog,
-        QSizePolicy,
         QTextBrowser,
     )
     from PySide6.QtGui import (  # type: ignore
@@ -45,7 +43,6 @@ try:
         QRegularExpression,
         QMimeData,
         QTimer,
-        QSize,
     )
 except ImportError:
     from PySide2.QtWidgets import (
@@ -54,7 +51,6 @@ except ImportError:
         QHBoxLayout,
         QLabel,
         QPushButton,
-        QDialog,
         QFrame,
         QMenu,
         QWidgetAction,
@@ -68,7 +64,6 @@ except ImportError:
         QVBoxLayout,
         QCheckBox,
         QColorDialog,
-        QSizePolicy,
         QTextBrowser,
     )
     from PySide2.QtGui import (
@@ -93,7 +88,6 @@ except ImportError:
         QPoint,
         QMimeData,
         QTimer,
-        QSize,
     )
 
     QRegularExpression = QRegExp
@@ -128,166 +122,12 @@ from .funcs import (
     rename_cam,
     check_for_updates,
 )
+from .base_widgets import (
+    QFlatDialog,
+)
 from . import DATA
 
 CONTEXTUAL_CURSOR = QCursor(QPixmap(":/rmbMenu.png"), hotX=11, hotY=8)
-
-
-class IconBrightHover:
-    @staticmethod
-    def apply(btn, icon_path, brighten_amount=80):
-        btn._icon_normal = QIcon(icon_path)
-        btn._icon_hover = IconBrightHover._brighten_icon(btn._icon_normal, brighten_amount, btn.iconSize())
-
-        btn.setIcon(btn._icon_normal)
-
-        prev_enter = btn.enterEvent
-        prev_leave = btn.leaveEvent
-
-        def enterEvent(event):
-            btn.setIcon(btn._icon_hover)
-            return prev_enter(event)
-
-        def leaveEvent(event):
-            btn.setIcon(btn._icon_normal)
-            return prev_leave(event)
-
-        btn.enterEvent = enterEvent
-        btn.leaveEvent = leaveEvent
-
-    @staticmethod
-    def _brighten_icon(icon, amount, size):
-        pix = icon.pixmap(size)
-        img = pix.toImage()
-        for x in range(img.width()):
-            for y in range(img.height()):
-                c = img.pixelColor(x, y)
-                img.setPixelColor(
-                    x,
-                    y,
-                    QColor(
-                        min(c.red() + amount, 255),
-                        min(c.green() + amount, 255),
-                        min(c.blue() + amount, 255),
-                        c.alpha(),
-                    ),
-                )
-        return QIcon(QPixmap.fromImage(img))
-
-
-class FlatButton(QPushButton):
-    """
-    A customizable, flat-styled button for the bottom bar.
-    """
-
-    STYLE_SHEET = """
-        FlatButton {
-            color: %s;
-            background-color: %s;
-            border: none;
-            border-radius: %spx;
-            padding: 8px 12px;
-        }
-        FlatButton:hover {
-            background-color: %s;
-        }
-        FlatButton:pressed {
-            background-color: %s;
-        }
-    """
-
-    def __init__(self, text, color="#ffffff", background="#5D5D5D", icon_path=None, border=8, parent=None):
-        super(FlatButton, self).__init__(text, parent)
-        self.setFlat(True)
-        self.setFixedHeight(32)
-        self.setCursor(Qt.PointingHandCursor)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
-        if icon_path:
-            self.setIconSize(QSize(20, 20))
-            IconBrightHover.apply(self, icon_path)
-
-        if background != "#5D5D5D":
-            base_background = int(background.lstrip("#"), 16)
-            r, g, b = (base_background >> 16) & 0xFF, (base_background >> 8) & 0xFF, base_background & 0xFF
-            hover_background = "#%s%s%s" % (min(r + 10, 255), min(g + 10, 255), min(b + 10, 255))
-            pressed_background = "#%s%s%s" % (max(r - 10, 0), max(g - 10, 0), max(b - 10, 0))
-        else:
-            hover_background = "#707070"
-            pressed_background = "#252525"
-
-        self.setStyleSheet(
-            self.STYLE_SHEET
-            % (
-                color,
-                background,
-                border * 1.4,
-                hover_background,
-                pressed_background,
-            )
-        )
-
-
-class BottomBar(QFrame):
-    """
-    A container widget for arranging FlatButtons horizontally.
-    """
-
-    def __init__(self, buttons=[], margins=8, parent=None):
-        super(BottomBar, self).__init__(parent)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(DPI(margins), DPI(margins), DPI(margins), DPI(margins))
-        layout.setSpacing(DPI(6))
-
-        for button in buttons:
-            layout.addWidget(button)
-
-
-class QFlatDialog(QDialog):
-    BORDER_RADIUS = 5
-
-    def __init__(self, parent=None):
-        super(QFlatDialog, self).__init__(parent)
-        self.setWindowFlags(self.windowFlags() | Qt.Tool)
-
-        self.root_layout = QVBoxLayout(self)
-        self.root_layout.setContentsMargins(0, 0, 0, 0)
-        self.root_layout.setSpacing(0)
-
-        self.bottomBar = None
-
-    def setBottomBar(self, buttons_config=[], closeButton=True):
-        """Dynamically creates and adds a bottom bar with custom buttons."""
-        if self.bottomBar:
-            self.bottomBar.deleteLater()
-
-        created_buttons = []
-        for config in buttons_config:
-            btn = FlatButton(
-                text=config.get("name", "Button"),
-                background=config.get("background", "#5D5D5D"),
-                icon_path=config.get("icon"),
-                border=self.BORDER_RADIUS,
-            )
-            if "callback" in config and callable(config["callback"]):
-                btn.clicked.connect(config["callback"])
-            created_buttons.append(btn)
-
-        if closeButton:
-            close_btn = FlatButton(
-                "Close",
-                background="#5D5D5D",
-                icon_path=return_icon_path("close"),
-                border=self.BORDER_RADIUS,
-            )
-            close_btn.clicked.connect(self.close)
-            created_buttons.append(close_btn)
-
-        if created_buttons:
-            self.bottomBar = BottomBar(buttons=created_buttons, parent=self)
-            self.root_layout.addWidget(self.bottomBar)
 
 
 # """
@@ -1204,6 +1044,7 @@ class Attributes(QFlatDialog):
         self.form_layout = QFormLayout()
         self.form_layout.setContentsMargins(DPI(15), DPI(15), DPI(15), DPI(15))
         self.form_layout.setVerticalSpacing(DPI(10))
+        self.form_layout.setSpacing(DPI(10))
         self.root_layout.addLayout(self.form_layout)
         self.focal_length_container = QHBoxLayout()
         self.near_clip_plane_container = QHBoxLayout()
@@ -1354,19 +1195,15 @@ class Attributes(QFlatDialog):
                     "name": "OK",
                     "callback": partial(self.apply_modifications, self.cam, close=True),
                     "icon": return_icon_path("apply"),
+                    "highlight": True,
                 },
-                {
-                    "name": "Apply",
-                    "callback": partial(self.apply_modifications, self.cam),
-                    "icon": return_icon_path("apply"),
-                },
-                {
-                    "name": "Cancel",
-                    "callback": self.close,
-                    "icon": return_icon_path("close"),
-                },
+                # {
+                #     "name": "Apply",
+                #     "callback": partial(self.apply_modifications, self.cam),
+                #     "icon": return_icon_path("apply"),
+                # }
             ],
-            closeButton=False,
+            closeButton=True,
         )
 
     def create_connections(self):
@@ -1555,6 +1392,7 @@ class DefaultSettings(QFlatDialog):
         self.main_layout = QFormLayout()
         self.main_layout.setContentsMargins(DPI(15), DPI(15), DPI(15), DPI(15))
         self.main_layout.setVerticalSpacing(DPI(10))
+        self.main_layout.setSpacing(DPI(10))
         self.root_layout.addLayout(self.main_layout)
 
     def create_widgets(self):
@@ -1673,6 +1511,7 @@ class DefaultSettings(QFlatDialog):
                     "name": "OK",
                     "callback": partial(self.apply_settings, close=True),
                     "icon": return_icon_path("apply"),
+                    "highlight": True,
                 }
             ],
             closeButton=True,
@@ -1785,12 +1624,14 @@ class Coffee(QFlatDialog):
     def __init__(self, parent=None):
         super(Coffee, self).__init__(parent)
 
+        self._parentUI = parent
+
         self.setObjectName(self._object_name)
         self.setWindowTitle("About " + DATA["TOOL"].title())
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(DPI(25), DPI(25), DPI(25), DPI(20))
+        content_layout.setContentsMargins(DPI(20), DPI(20), DPI(20), 0)
         content_layout.setSpacing(DPI(12))
 
         # Logo Section
@@ -1804,9 +1645,7 @@ class Coffee(QFlatDialog):
         # Tool Name
         tool_name = QLabel("%s Tool" % DATA["TOOL"].title())
         tool_name.setAlignment(Qt.AlignCenter)
-        tool_name.setStyleSheet(
-            "font-size: %spx; font-weight: bold; color: #ececec; margin-top: %spx;" % (DPI(20), DPI(5))
-        )
+        tool_name.setStyleSheet("font-size: %spx; font-weight: bold; color: #ececec;" % DPI(20))
         content_layout.addWidget(tool_name)
 
         # Version Badge (Clickable)
@@ -1830,7 +1669,7 @@ class Coffee(QFlatDialog):
         """
             % (DPI(4), DPI(4), DPI(8), DPI(11))
         )
-        version_btn.clicked.connect(lambda: check_for_updates(parent))
+        version_btn.clicked.connect(lambda: self._check_for_updates())
         content_layout.addWidget(version_btn, alignment=Qt.AlignCenter)
 
         # Info Section
@@ -1877,8 +1716,15 @@ class Coffee(QFlatDialog):
         info_browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         info_browser.setOpenExternalLinks(True)
         info_browser.setFocusPolicy(Qt.NoFocus)
+        info_browser.setFixedHeight(DPI(85))
 
         content_layout.addWidget(info_browser)
         self.root_layout.addWidget(content_widget)
 
         self.setBottomBar(closeButton=True)
+        self.resize(DPI(300), DPI(150))
+        self.adjustSize()
+
+    def _check_for_updates(self):
+        cmds.showWindow("MayaWindow")
+        return check_for_updates(self._parentUI)

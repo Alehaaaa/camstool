@@ -1,7 +1,8 @@
 import maya.cmds as cmds
 import maya.mel as mel
-import os
+import importlib
 import shutil
+import os
 
 import maya.OpenMayaUI as omui
 
@@ -17,8 +18,6 @@ try:
     from PySide6.QtGui import QVector2D  # type: ignore
 
     from shiboken6 import wrapInstance  # type: ignore
-
-
 except ImportError:
     from PySide2.QtWidgets import (
         QWidget,
@@ -32,9 +31,15 @@ except ImportError:
 
     from shiboken2 import wrapInstance
 
-import importlib
-
-from .util import DPI, get_maya_qt, get_python_version, get_root_path
+from .util import (
+    DPI,
+    get_maya_qt,
+    get_python_version,
+    get_root_path,
+    return_icon_path,
+    compare_versions,
+)
+from .base_widgets import QFlatConfirmDialog
 
 long = int
 
@@ -92,16 +97,19 @@ def install_userSetup(uninstall=False):
 
 
 def unistall(ui):
-    box = cmds.confirmDialog(
-        title="About to Uninstall!",
-        message="Uninstalling Cams will remove ALL settings.\nAre you sure you want to continue?",
-        button=["Yes", "Cancel"],
-        defaultButton="Cancel",
-        cancelButton="Cancel",
-        dismissString="Cancel",
+    box = QFlatConfirmDialog(
+        window="About to Uninstall",
+        title="Are you sure?",
+        message="Uninstalling Cams will remove ALL settings!\nThis action is NOT undoable.",
+        buttons=[
+            {"name": "Uninstall", "positive": True, "icon": return_icon_path("remove")},
+            {"name": "Cancel", "positive": False, "icon": return_icon_path("close"), "highlight": True},
+        ],
+        icon=return_icon_path("danger"),
+        closeButton=False,
     )
 
-    if box == "Yes":
+    if box.confirm():
         install_userSetup(uninstall=True)
 
         toolsFolder = os.path.join(os.environ["MAYA_APP_DIR"], "scripts", "aleha_tools")
@@ -527,29 +535,23 @@ def close_UI(ui, confirm=True):
             return False
 
         if not find():
-            box = cmds.confirmDialog(
-                title="About to close Cams!",
-                message="Closing Cams will NOT reopen the UI on Maya's next launch.\nYou will have to use a Shelf button or run Cams launch script.\n\nAre you sure you want to continue?",
-                button=["Yes", "Add to Shelf", "Cancel"],
-                defaultButton="Cancel",
-                cancelButton="Cancel",
-                dismissString="Cancel",
+            box = QFlatConfirmDialog(
+                window="About to close Cams!",
+                title="Are you sure?",
+                message="Closing Cams will NOT reopen the UI on Maya's next launch.\nYou will have to use a Shelf button or run Cams launch script.",
+                buttons=[
+                    {"name": "Yes", "positive": True},
+                    {"name": "Add to Shelf", "positive": True},
+                    {"name": "Cancel", "positive": False, "icon": return_icon_path("close")},
+                ],
             )
 
-            if box == "Yes" or box == "Add to Shelf":
-                if box == "Add to Shelf":
-                    cmds.shelfButton(
-                        parent=currentShelf,
-                        i=os.path.join(
-                            os.path.dirname(__file__),
-                            "_icons",
-                            tool + ".svg",
-                        ),
-                        label=tool,
-                        c="import aleha_tools.%s as %s;from importlib import reload;reload(%s);%s.show()"
-                        % (tool, tool, tool, tool),
-                        annotation=tool.title() + " by Aleha",
-                    )
+            if box.confirm():
+                if box.clicked_button == "Add to Shelf":
+                    from . import updater
+
+                    updater.add_shelf_button(tool="cams")
+                ui.close()
             else:
                 return
     close_all_Windows(ui.objectName())
@@ -629,8 +631,8 @@ def compile_version():
     )
     if version_input == "OK":
         new_version = cmds.promptDialog(query=True, text=True)
-        if new_version < local_version:
-            cmds.warning("New version must be greater than current version.")
+        if compare_versions(new_version, local_version) < 0:
+            cmds.warning("New version must be greater or equal to current version.")
             return
 
         path = get_root_path() / "development" / "UpdateCompiler.py"
@@ -679,6 +681,12 @@ def changes_compiler():
     try:
         changelog = _run_method(_load_module(path, name), cls, method, script_path, local_version)
         if changelog:
-            cmds.confirmDialog(m="- " + "\n- ".join(changelog))
+            QFlatConfirmDialog(
+                window="Changelog",
+                title="Recent Changes",
+                message="- " + "\n- ".join(changelog),
+                buttons=["Ok"],
+                exclusive=False,
+            ).confirm()
     except (ImportError, AttributeError) as e:
         print("Changelog Error: %s" % e)

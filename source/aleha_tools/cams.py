@@ -21,7 +21,6 @@ try:
     from PySide6.QtWidgets import (  # type: ignore
         QWidget,
         QMainWindow,
-        QMessageBox,
         QLabel,
         QLayout,
         QDialog,
@@ -51,7 +50,6 @@ except ImportError:
     from PySide2.QtWidgets import (
         QWidget,
         QMainWindow,
-        QMessageBox,
         QLabel,
         QLayout,
         QAction,
@@ -91,7 +89,7 @@ for mod_name in modules_to_delete:
 
 # Import and reload necessary modules
 import aleha_tools  # type: ignore  # noqa: E402
-from . import settings, widgets, funcs, util, updater  # noqa: E402
+from . import settings, widgets, funcs, util, updater, base_widgets  # noqa: E402
 
 reload(aleha_tools)
 reload(settings)
@@ -604,7 +602,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         system_menu.addSeparator()
 
         self.reset_cams_data = system_menu.addAction(
-            QIcon(util.return_icon_path("warning")), "Reset All Settings"
+            QIcon(util.return_icon_path("warning")), "Reset Settings"
         )
         system_menu.addSeparator()
         self.close_btn = system_menu.addAction(QIcon(util.return_icon_path("close_menu")), "Close")
@@ -1020,22 +1018,25 @@ class UI(MayaQWidgetDockableMixin, QDialog):
                 settings.save_to_disk("defaultCameraSettings", self.cams_prefs)
                 settings.save_to_disk("startupSettings", self.startup_prefs)
             else:
-                box = QMessageBox()
-                box.setIcon(QMessageBox.Warning)
-                box.setWindowTitle("About to erase All Settings!")
-                box.setText(
-                    "Are you sure you want to delete ALL settings for Cams?\nThis action is not undoable."
+                box = base_widgets.QFlatConfirmDialog(
+                    window="Reset Settings",
+                    title="Are you sure?",
+                    message="About to erase all Settings for Cams!\nThis action is NOT undoable.",
+                    buttons=[
+                        {"name": "Reset", "positive": True, "icon": util.return_icon_path("remove")},
+                        {
+                            "name": "Cancel",
+                            "positive": False,
+                            "icon": util.return_icon_path("close"),
+                            "highlight": True,
+                        },
+                    ],
+                    icon=util.return_icon_path("warning"),
+                    closeButton=False,
                 )
-                box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-
-                reset = box.button(QMessageBox.Yes)
-                reset.setText("Reset")
-                cancel = box.button(QMessageBox.No)
-                cancel.setText("Cancel")
-                box.exec_()
-
-                if box.clickedButton() == reset:
-                    settings.save_to_disk()
+                if box.confirm():
+                    settings.save_to_disk("defaultCameraSettings", self.cams_prefs)
+                    settings.save_to_disk("startupSettings", self.startup_prefs)
 
     def settings(self):
         self.process_prefs(save=False)

@@ -106,3 +106,28 @@ def check_visible_layout(layout):
 def get_root_path():
     """Returns the root path of the project (parent of source directory)."""
     return Path(__file__).resolve().parents[2]
+
+
+def compare_versions(v1, v2):
+    """
+    Compares two version strings.
+    Returns:
+        -1 if v1 < v2
+         0 if v1 == v2
+         1 if v1 > v2
+    """
+    import re
+
+    def tokenize(v):
+        return [int(s) if s.isdigit() else s.lower() for s in re.split(r"(\d+)", str(v)) if s]
+
+    t1, t2 = tokenize(v1), tokenize(v2)
+
+    for p1, p2 in zip(t1, t2):
+        if p1 == p2:
+            continue
+        if type(p1) is not type(p2):
+            p1, p2 = str(p1), str(p2)
+        return (p1 > p2) - (p1 < p2)
+
+    return (len(t1) > len(t2)) - (len(t1) < len(t2))

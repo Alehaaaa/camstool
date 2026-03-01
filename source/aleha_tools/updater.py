@@ -13,6 +13,8 @@ import maya.cmds as cmds
 import maya.mel as mel
 
 from . import funcs, util
+from .util import compare_versions
+from .base_widgets import QFlatConfirmDialog
 
 # Constants
 REPO = "https://raw.githubusercontent.com/Alehaaaa/camstool/main/"
@@ -121,12 +123,14 @@ def add_shelf_button(tool, command):
             c=command or "import aleha_tools." + tool + " as " + tool + ";" + tool + ".show()",
             annotation=tool.title() + " by Aleha",
         )
-        cmds.confirmDialog(
+
+        QFlatConfirmDialog(
+            window="Success",
             title="Added Shelf Button",
             message="Added a Button for " + tool.title() + " to the current shelf.",
-            button=["Ok"],
-            defaultButton="Ok",
-        )
+            buttons=["Ok"],
+            exclusive=False,
+        ).confirm()
 
 
 def get_latest_version():
@@ -183,6 +187,27 @@ def _get_changelog():
         return None
 
 
+def install_update(latest_version):
+    """Performs the actual update installation."""
+    command = "import aleha_tools.cams as cams\ncams.show()"
+    if not install("cams", command):  # Assuming "cams" is the tool name for the main package
+        raise RuntimeError("Failed to install update files.")
+
+    # Reload the main module if it's already loaded
+    reload_command = command.replace(
+        "\n",
+        "\ntry: from importlib import reload\nexcept ImportError: pass\nreload(cams)\n",
+    )
+    cmds.evalDeferred(reload_command)
+
+    cmds.evalDeferred(
+        'from aleha_tools import util\nutil.make_inViewMessage("Update finished successfully<hl>'
+        + latest_version
+        + "</hl></div>)",
+        lowestPriority=True,
+    )
+
+
 # Check for Updates
 def _check_for_updates(ui, warning=True, force=False):
     installed_verion = ui.VERSION
@@ -191,43 +216,56 @@ def _check_for_updates(ui, warning=True, force=False):
     if not latest_version:
         return
 
-    if not force and installed_verion == latest_version:
-        if warning:
-            util.make_inViewMessage("<hl>" + installed_verion + "</hl>\nYou are up-to-date.")
-        return
+    comp = compare_versions(latest_version, installed_verion)
+    if not force:
+        if comp == 0:
+            if warning:
+                util.make_inViewMessage("<hl>" + installed_verion + "</hl>\nYou are up-to-date.")
+            return
 
-    elif latest_version < installed_verion:
-        if warning:
-            util.make_inViewMessage(
-                "You are using an unpublished\nversion <hl>" + installed_verion + "</hl></div>"
-            )
-
-    else:
-        changelog = _get_changelog()
-        is_blocked = bool(changelog.get("blocked", False))
-        if is_blocked:
+        elif comp < 0:
             if warning:
                 util.make_inViewMessage(
-                    "<hl>Updates are blocked</hl>\nPlease wait until the problem == solved.",
-                    "warning",
+                    "You are using an unpublished\nversion <hl>" + installed_verion + "</hl></div>"
                 )
             return
 
-        last_release_notes = changelog["versions"][latest_version]
-        formated_changelog = "\n".join(["- " + line for line in last_release_notes])
+    changelog = _get_changelog()
+    if not changelog:
+        return
 
-        funcs.install_userSetup()
+    is_blocked = bool(changelog.get("blocked", False))
+    if is_blocked:
+        if warning:
+            util.make_inViewMessage(
+                "<hl>Updates are blocked</hl>\nPlease wait until the problem is solved.",
+                "warning",
+            )
+        return
 
-        update_available = cmds.confirmDialog(
-            title="New update for " + ui.TITLE + "!",
-            message="Version %s available, you are using %s\n\n%s"
-            % (latest_version, installed_verion, formated_changelog),
-            messageAlign="center",
-            button=["Install", "Skip", "Close"],
-            defaultButton="Install",
-            cancelButton="Close",
-        )
-        if update_available == "Install":
+    last_release_notes = changelog.get("versions", {}).get(latest_version, [])
+    formated_changelog = "\n".join(["- " + line for line in last_release_notes])
+
+    funcs.install_userSetup()
+
+    update_available = QFlatConfirmDialog(
+        window="Update for " + ui.TITLE,
+        title="Version %s available, you are using %s" % (latest_version, installed_verion),
+        message=formated_changelog,
+        buttons=[
+            {
+                "name": "Install",
+                "positive": True,
+                "icon": util.return_icon_path("install"),
+                "highlight": True,
+            },
+            {"name": "Skip", "positive": True, "icon": util.return_icon_path("skip")},
+        ],
+        exclusive=False,
+    )
+
+    if update_available.confirm():
+        if update_available.clicked_button == "Install":
             from . import updater
 
             try:
@@ -253,5 +291,5 @@ def _check_for_updates(ui, warning=True, force=False):
             )
             ui.process_prefs(skip_update=False)
 
-        elif update_available == "Skip":
+        elif update_available.clicked_button == "Skip":
             ui.process_prefs(skip_update=True)

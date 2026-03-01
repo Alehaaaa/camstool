@@ -1,5 +1,16 @@
 {
     "versions": {
+        "0.2.51beta-hotfix": [
+            "Added version comparison.",
+            "Improved version checking.",
+            "Removed QApplication import.",
+            "Robust changelog handling."
+        ],
+        "0.2.5beta": [
+            "Dialogs now use QFlatConfirm and FlatButton.",
+            "Better reset settings dialog.",
+            "Improved update dialog."
+        ],
         "0.2.4beta": [
             "Refactored About Dialog and other components.",
             "Refactor: f-strings removed.",
