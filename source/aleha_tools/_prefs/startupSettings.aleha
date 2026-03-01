@@ -1,1 +1,1 @@
-{'position': ['ChannelBoxLayerEditor', 'bottom'], 'startup_hud': False, 'startup_viewport': False, 'startup_run_cams': True, 'skip_update': True, 'confirm_exit': True}
+{'position': ['ChannelBoxLayerEditor', 'top'], 'startup_hud': False, 'startup_viewport': False, 'startup_run_cams': True, 'skip_update': False, 'confirm_exit': True}

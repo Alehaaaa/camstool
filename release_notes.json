@@ -1,5 +1,8 @@
 {
     "versions": {
+        "0.2.61beta-hotfix": [
+            "Hotfix for updater."
+        ],
         "0.2.6beta": [
             "Updated QFlatConfirm to work better in MacOS.",
             "Fixed some stuff."
@@ -25,7 +28,7 @@
             "Round color values."
         ],
         "0.2.2beta": [
-            "Fixed docking issues"
+            "Fixed docking issues."
         ],
         "0.2.1beta": [
             "Remove custom shelf UI.",

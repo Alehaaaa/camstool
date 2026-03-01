@@ -151,7 +151,7 @@ def get_latest_version():
                 util.make_inViewMessage(NO_DATA_ERROR)
                 return None
 
-            return text
+            return text.strip()
 
     except urllib.error.URLError as e:
         util.make_inViewMessage("Network error: %s" % e)
@@ -194,16 +194,12 @@ def install_update(latest_version):
         raise RuntimeError("Failed to install update files.")
 
     # Reload the main module if it's already loaded
-    reload_command = command.replace(
-        "\n",
-        "\ntry: from importlib import reload\nexcept ImportError: pass\nreload(cams)\n",
-    )
+    reload_command = "import aleha_tools.cams as cams; from importlib import reload; reload(cams); cams.show()"
     cmds.evalDeferred(reload_command)
 
     cmds.evalDeferred(
-        'from aleha_tools import util\nutil.make_inViewMessage("Update finished successfully<hl>'
-        + latest_version
-        + "</hl></div>)",
+        'from aleha_tools import util; util.make_inViewMessage("Update finished successfully<hl>%s</hl>")'
+        % latest_version.replace("\n", "").replace("\r", ""),
         lowestPriority=True,
     )
 
@@ -272,16 +268,12 @@ def _check_for_updates(ui, warning=True, force=False):
             if not updater.install(ui.TITLE.lower(), command):
                 return
 
-            reload_command = command.replace(
-                "\n",
-                ";try: from importlib import reload;except ImportError: pass;reload(cams);",
-            )
+            reload_command = "import aleha_tools.cams as cams; from importlib import reload; reload(cams); cams.show()"
             cmds.evalDeferred(reload_command)
 
             cmds.evalDeferred(
-                'from aleha_tools import util\nutil.make_inViewMessage("Update finished successfully<hl>'
-                + latest_version
-                + "</hl></div>)",
+                'from aleha_tools import util; util.make_inViewMessage("Update finished successfully<hl>%s</hl>")'
+                % latest_version.replace("\n", "").replace("\r", ""),
                 lowestPriority=True,
             )
             ui.process_prefs(skip_update=False)

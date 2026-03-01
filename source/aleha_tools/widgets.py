@@ -1649,7 +1649,7 @@ class Coffee(QFlatDialog):
                     <a href='%s' style='color: #5D99C6; text-decoration: none;'>Website</a>
                 </div>
                 <p style='margin-top: 15px; font-style: italic; color: #777777;'>
-                    If you like this tool, consider sending some love!
+                    If you like this tool, consider sending me some love!
                 </p>
             </div>
         """ % (
