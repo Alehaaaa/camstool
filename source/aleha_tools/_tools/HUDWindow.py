@@ -9,7 +9,6 @@ try:
         QVBoxLayout,
         QLabel,
         QFrame,
-        QMessageBox,
         QLineEdit,
         QMenuBar,
         QGridLayout,
@@ -29,12 +28,14 @@ except ImportError:
         QWidget,
         QLabel,
         QFrame,
-        QMessageBox,
+        QVBoxLayout,
         QLineEdit,
         QMenuBar,
         QGridLayout,
         QComboBox,
         QSizePolicy,
+        QActionGroup,
+        QAction,
     )
     from PySide2.QtGui import (
         QIcon,
@@ -56,7 +57,7 @@ except ImportError:
     pass
 
 from .. import util
-from ..widgets import QFlatDialog
+from ..widgets import QFlatDialog, QFlatConfirmDialog
 
 reload(util)
 
@@ -354,19 +355,12 @@ class HUDWindow(QFlatDialog):
         rectangle.setLayout(combo_layout)
 
         self.setBottomBar(
-            [
-                {
-                    "name": "OK",
-                    "callback": partial(self.save_changes, close=True),
-                    "icon": util.return_icon_path("apply"),
-                    "highlight": True,
-                },
-                # {
-                #     "name": "Apply",
-                #     "callback": partial(self.save_changes),
-                #     "icon": util.return_icon_path("apply"),
-                # },
-            ],
+            QFlatConfirmDialog.CustomButton(
+                "OK",
+                callback=partial(self.save_changes, close=True),
+                icon=util.return_icon_path("apply"),
+                highlight=True,
+            ),
             closeButton=True,
         )
 
@@ -465,16 +459,15 @@ class HUDWindow(QFlatDialog):
         current_preset = self.get_current_preset()
 
         if current_preset != "Default":
-            delete = QMessageBox()
-            response = delete.question(
+            response = QFlatConfirmDialog.question(
                 None,
                 "Delete Preset",
-                "Are you sure you want to delete '%s'?" % current_preset,
-                delete.Yes | delete.No,
-                delete.No,
+                "Do you want to delete '%s'?" % current_preset,
+                buttons=QFlatConfirmDialog.Yes | QFlatConfirmDialog.No,
+                highlight=QFlatConfirmDialog.No,
             )
 
-            if response == delete.Yes:
+            if response == QFlatConfirmDialog.Yes:
                 self.hud_presets.pop(current_preset)
 
                 for action in self.menu_presets.actions():
@@ -483,28 +476,26 @@ class HUDWindow(QFlatDialog):
                 self.refresh_ui()
                 self.save_prefs()
         else:
-            no_delete_default = QMessageBox()
-            no_delete_default.information(
+            QFlatConfirmDialog.question(
                 None,
                 "Cannot delete Default",
                 "The Default preset cannot be deleted.",
-                no_delete_default.Ok,
-                no_delete_default.Ok,
+                buttons=QFlatConfirmDialog.Ok,
+                highlight=QFlatConfirmDialog.Ok,
             )
 
     def reset_preset(self):
         current_preset = self.get_current_preset()
 
-        reset = QMessageBox()
-        response = reset.question(
+        response = QFlatConfirmDialog.question(
             None,
             "Reset Preset",
-            "Are you sure you want to reset '%s' to the default settings?" % current_preset,
-            reset.Yes | reset.No,
-            reset.No,
+            "Do you want to reset '%s' to the default settings?" % current_preset,
+            buttons=QFlatConfirmDialog.Yes | QFlatConfirmDialog.No,
+            highlight=QFlatConfirmDialog.No,
         )
 
-        if response == reset.Yes:
+        if response == QFlatConfirmDialog.Yes:
             self.hud_presets[current_preset] = self.default_hud
             self.refresh_ui()
             self.save_prefs()
@@ -525,20 +516,17 @@ class HUDWindow(QFlatDialog):
                 if change:
                     if self.displayed_preset != "":
                         for combo in self.all_combos:
-                            current_combo = list(self.hud_items.values()).index(
-                                getattr(self, combo).currentText()
-                            )
+                            current_combo = list(self.hud_items.values()).index(getattr(self, combo).currentText())
                             if current_combo != self.user_prefs["presets"][self.displayed_preset][combo]:
-                                changes = QMessageBox()
-                                response = changes.question(
+                                response = QFlatConfirmDialog.question(
                                     None,
                                     "Unsaved changes",
                                     "Do you want to save the changes made to this preset?",
-                                    changes.Yes | changes.No,
-                                    changes.No,
+                                    buttons=QFlatConfirmDialog.Yes | QFlatConfirmDialog.No,
+                                    highlight=QFlatConfirmDialog.No,
                                 )
 
-                                if response == changes.Yes:
+                                if response == QFlatConfirmDialog.Yes:
                                     self.save_prefs()
                                 break
                     self.preset_title.clearFocus()

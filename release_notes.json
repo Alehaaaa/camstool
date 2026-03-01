@@ -1,5 +1,9 @@
 {
     "versions": {
+        "0.2.6beta": [
+            "Updated QFlatConfirm to work better in MacOS.",
+            "Fixed some stuff."
+        ],
         "0.2.51beta-hotfix": [
             "Added version comparison.",
             "Improved version checking.",

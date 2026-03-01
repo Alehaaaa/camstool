@@ -8,6 +8,7 @@ try:
         QDialog,
         QFrame,
         QSizePolicy,
+        QLayout,
     )
     from PySide6.QtGui import (  # type: ignore
         QIcon,
@@ -29,6 +30,7 @@ except ImportError:
         QDialog,
         QFrame,
         QSizePolicy,
+        QLayout,
     )
     from PySide2.QtGui import (
         QIcon,
@@ -49,6 +51,61 @@ from .util import (
 )
 
 
+class DialogButton(dict):
+    """A dictionary subclass that supports the | operator to return a list of buttons."""
+
+    def __init__(self, name_or_dict=None, **kwargs):
+        if name_or_dict is not None:
+            if isinstance(name_or_dict, (str, bytes)):
+                kwargs["name"] = name_or_dict
+                super(DialogButton, self).__init__(**kwargs)
+            elif isinstance(name_or_dict, dict):
+                super(DialogButton, self).__init__(name_or_dict, **kwargs)
+            else:
+                super(DialogButton, self).__init__(**kwargs)
+        else:
+            super(DialogButton, self).__init__(**kwargs)
+
+    def copy(self):
+        return DialogButton(super(DialogButton, self).copy())
+
+    def __eq__(self, other):
+        if isinstance(other, (str, bytes)):
+            return self.get("name") == other
+        return super(DialogButton, self).__eq__(other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __or__(self, other):
+        if isinstance(other, (dict, DialogButton)):
+            return DialogButtonList([self, other])
+        if isinstance(other, list):
+            return DialogButtonList([self] + other)
+        # Support dict union for Python 3.9+ if available
+        if hasattr(super(DialogButton, self), "__or__"):
+            return super(DialogButton, self).__or__(other)
+        return NotImplemented
+
+    def __ror__(self, other):
+        if isinstance(other, list):
+            return DialogButtonList(other + [self])
+        if hasattr(super(DialogButton, self), "__ror__"):
+            return super(DialogButton, self).__ror__(other)
+        return NotImplemented
+
+
+class DialogButtonList(list):
+    """A list subclass that supports the | operator to combine buttons."""
+
+    def __or__(self, other):
+        if isinstance(other, (dict, DialogButton)):
+            return DialogButtonList(self + [other])
+        if isinstance(other, list):
+            return DialogButtonList(self + other)
+        return self
+
+
 class HoverableIcon:
     HIGHLIGHT_HEX = "#282828"
 
@@ -56,9 +113,7 @@ class HoverableIcon:
     def apply(btn, icon_path, highlight=False, brighten_amount=80):
         base_icon = QIcon(icon_path)
         if highlight:
-            btn._icon_normal = HoverableIcon._color_icon(
-                base_icon, HoverableIcon.HIGHLIGHT_HEX, btn.iconSize()
-            )
+            btn._icon_normal = HoverableIcon._color_icon(base_icon, HoverableIcon.HIGHLIGHT_HEX, btn.iconSize())
         else:
             btn._icon_normal = base_icon
 
@@ -172,6 +227,7 @@ class FlatButton(QPushButton):
             HoverableIcon.apply(self, icon_path, highlight=highlight)
 
         if highlight:
+            self.setIconSize(QSize(24, 24))
             color = self.HIGHLIGHT_COLOR
             background = self.HIGHLIGHT_BACKGROUND
             hover_background = self.HIGHLIGHT_HOVER_BACKGROUND
@@ -232,9 +288,20 @@ class BottomBar(QFrame):
 class QFlatDialog(QDialog):
     BORDER_RADIUS = 5
 
-    def __init__(self, parent=None):
+    # Button Preconfigurations
+    CustomButton = DialogButton
+
+    Yes = DialogButton("Yes", positive=True, icon=return_icon_path("apply"))
+    Ok = DialogButton("Ok", positive=True, icon=return_icon_path("apply"))
+
+    No = DialogButton("No", positive=False, icon=return_icon_path("cancel"))
+    Cancel = DialogButton("Cancel", positive=False, icon=return_icon_path("cancel"))
+    Close = DialogButton("Close", positive=False, icon=return_icon_path("close"))
+
+    def __init__(self, parent=None, buttons=None, highlight=None, closeButton=False):
         if parent is None:
             parent = get_maya_qt()
+
         super(QFlatDialog, self).__init__(parent)
         self.setWindowFlags(self.windowFlags() | Qt.Tool)
 
@@ -243,6 +310,9 @@ class QFlatDialog(QDialog):
         self.root_layout.setSpacing(0)
 
         self.bottomBar = None
+        self.highlighted_button = highlight
+        self._buttons_to_init = buttons
+        self._default_button = None
 
     def _buttonConfigHook(self, index, config):
         """Hook for subclasses to modify button configuration before creation."""
@@ -252,17 +322,23 @@ class QFlatDialog(QDialog):
         created_buttons = []
         for i, btn_data in enumerate(buttons):
             if isinstance(btn_data, (str, bytes)):
-                config = {"name": btn_data}
+                config = DialogButton(btn_data)
             else:
                 config = btn_data.copy()
 
             config = self._buttonConfigHook(i, config)
 
+            # Handle automatic highlighting if matches highlight name or dict
+            is_highlighted = config.get("highlight", False)
+            if self.highlighted_button:
+                if btn_data == self.highlighted_button or config.get("name") == self.highlighted_button:
+                    is_highlighted = True
+
             btn = FlatButton(
                 text=config.get("name", "Button"),
                 background=config.get("background", "#5D5D5D"),
                 icon_path=config.get("icon"),
-                highlight=config.get("highlight", False),
+                highlight=is_highlighted,
                 border=self.BORDER_RADIUS,
             )
 
@@ -271,24 +347,48 @@ class QFlatDialog(QDialog):
             if callback and callable(callback):
                 btn.clicked.connect(callback)
 
+            if is_highlighted:
+                btn.setAutoDefault(True)
+                btn.setDefault(True)
+                self._default_button = btn
+
             created_buttons.append(btn)
         return created_buttons
 
-    def setBottomBar(self, buttons=[], closeButton=True):
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if self._default_button:
+                self._default_button.click()
+                return
+        super(QFlatDialog, self).keyPressEvent(event)
+
+    def setBottomBar(self, buttons=None, closeButton=False, highlight=None):
         """Dynamically creates and adds a bottom bar with custom buttons."""
         if self.bottomBar:
+            self.root_layout.removeWidget(self.bottomBar)
+            self.bottomBar.setParent(None)
             self.bottomBar.deleteLater()
+            self.bottomBar = None
 
-        created_buttons = self._defineButtons(buttons)
+        if highlight:
+            self.highlighted_button = highlight
+
+        # Prepare button data list
+        btn_data = []
+        if buttons:
+            if isinstance(buttons, (list, tuple)):
+                btn_data.extend(buttons)
+            else:
+                btn_data.append(buttons)
+
         if closeButton:
-            close_btn = FlatButton(
-                "Close",
-                background="#5D5D5D",
-                icon_path=return_icon_path("close"),
-                border=self.BORDER_RADIUS,
-            )
-            close_btn.clicked.connect(self.close)
-            created_buttons.append(close_btn)
+            close_cfg = self.Close.copy()
+            # If no callback is defined, default to self.close
+            if not close_cfg.get("callback"):
+                close_cfg["callback"] = self.close
+            btn_data.append(close_cfg)
+
+        created_buttons = self._defineButtons(btn_data)
 
         if created_buttons:
             self.bottomBar = BottomBar(buttons=created_buttons, parent=self)
@@ -305,17 +405,31 @@ class QFlatConfirmDialog(QFlatDialog):
         message="",
         buttons=["Ok"],
         closeButton=True,
+        highlight=None,
         icon=None,
         exclusive=True,
         parent=None,
     ):
-        super(QFlatConfirmDialog, self).__init__(parent)
+        super(QFlatConfirmDialog, self).__init__(
+            parent=parent, buttons=buttons, highlight=highlight, closeButton=closeButton
+        )
+
+        # Ensure we are a Dialog but inherit Tool if parent has it
+        new_flags = self.windowFlags() | Qt.Dialog
+        if parent and (parent.windowFlags() & Qt.Tool):
+            new_flags |= Qt.Tool
+
+        self.setWindowFlags(new_flags)
+        if parent:
+            self.setParent(parent)
+
+        self.setAttribute(Qt.WA_DeleteOnClose, False)
+        self.root_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
         self.setWindowTitle(window or "Confirm")
         self.clicked_button = None
 
         self._exclusive = exclusive
-        self.setWindowModality(Qt.WindowModal if exclusive else Qt.NonModal)
-        self.setMinimumWidth(DPI(400))
+        self.setMinimumWidth(0)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
 
         content_widget = QWidget()
@@ -327,9 +441,7 @@ class QFlatConfirmDialog(QFlatDialog):
             pix = QPixmap(icon)
             if not pix.isNull():
                 icon_dim = DPI(80)
-                icon_label.setPixmap(
-                    pix.scaled(icon_dim, icon_dim, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                )
+                icon_label.setPixmap(pix.scaled(icon_dim, icon_dim, Qt.KeepAspectRatio, Qt.SmoothTransformation))
                 icon_label.setFixedSize(icon_dim, icon_dim)
                 content_layout.addWidget(icon_label, 0, Qt.AlignTop)
 
@@ -340,6 +452,7 @@ class QFlatConfirmDialog(QFlatDialog):
         if title:
             self.title_label = QLabel(title)
             self.title_label.setWordWrap(True)
+            self.title_label.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)
             self.title_label.setStyleSheet(
                 "font-size: %spx; color: %s; font-weight: bold;" % (DPI(18), self.TEXT_COLOR)
             )
@@ -352,7 +465,7 @@ class QFlatConfirmDialog(QFlatDialog):
 
         self.root_layout.addWidget(content_widget)
 
-        self.setBottomBar(buttons, closeButton=closeButton)
+        self.setBottomBar(buttons, closeButton=closeButton, highlight=highlight)
         self.adjustSize()
 
     def _buttonConfigHook(self, index, config):
@@ -363,19 +476,42 @@ class QFlatConfirmDialog(QFlatDialog):
         if isinstance(config, (str, bytes)):
             name = config
             is_pos = index == 0
+            original_config = DialogButton(name, positive=is_pos)
         else:
             name = config.get("name", "Button")
             is_pos = config.get("positive", index == 0)
+            # Take a snapshot to avoid polluting the result with the internal callback
+            original_config = config.copy()
 
-        config["callback"] = partial(self._on_button_clicked, name, is_pos)
+        config["callback"] = partial(self._on_button_clicked, original_config)
         return config
 
-    def _on_button_clicked(self, btn_text, is_positive):
-        self.clicked_button = btn_text
-        if is_positive:
+    def _on_button_clicked(self, config):
+        self.clicked_button = config
+        if config.get("positive", False):
             self.accept()
         else:
             self.reject()
+
+    @classmethod
+    def question(
+        cls, parent, window, message, buttons=None, highlight=None, closeButton=False, title="Are you sure?", **kwargs
+    ):
+        """Static-like helper to create and show a confirm dialog."""
+        if buttons is None:
+            buttons = [cls.Yes, cls.No]
+        dlg = cls(
+            window=window,
+            title=title,
+            message=message,
+            buttons=buttons,
+            highlight=highlight,
+            closeButton=closeButton,
+            parent=parent,
+            **kwargs,
+        )
+        dlg.exec_()
+        return dlg.clicked_button
 
     def confirm(self):
         """Executes the dialog and returns True if a 'positive' button was clicked."""
@@ -383,6 +519,8 @@ class QFlatConfirmDialog(QFlatDialog):
             return self.exec_() == QDialog.Accepted
 
         self.show()
+        self.raise_()
+        self.activateWindow()
         loop = QEventLoop()
         self.finished.connect(loop.quit)
         loop.exec_()

@@ -9,7 +9,6 @@ try:
         QMenu,
         QWidgetAction,
         QApplication,
-        QMessageBox,
         QScrollArea,
         QSlider,
         QLineEdit,
@@ -56,7 +55,6 @@ except ImportError:
         QWidgetAction,
         QActionGroup,
         QApplication,
-        QMessageBox,
         QScrollArea,
         QSlider,
         QLineEdit,
@@ -124,6 +122,7 @@ from .funcs import (
 )
 from .base_widgets import (
     QFlatDialog,
+    QFlatConfirmDialog,
 )
 from . import DATA
 
@@ -507,9 +506,7 @@ class HoverButton(QPushButton):
         menu.addAction(action)
 
     def _add_selection_actions(self, menu):
-        self.select_action = menu.addAction(
-            self.icons["select"], "Select", partial(select_cam, self._camera, self)
-        )
+        self.select_action = menu.addAction(self.icons["select"], "Select", partial(select_cam, self._camera, self))
         self.deselect_action = menu.addAction(
             self.icons["deselect"], "Deselect", partial(deselect_cam, self._camera, self)
         )
@@ -894,8 +891,7 @@ class HoverButton(QPushButton):
         action = menu.addAction("FilmGate Mask", self._toggle_filmgate)
         action.setCheckable(True)
         action.setChecked(
-            cmds.getAttr("%s.displayFilmGate" % self._camera)
-            and cmds.getAttr("%s.displayGateMask" % self._camera)
+            cmds.getAttr("%s.displayFilmGate" % self._camera) and cmds.getAttr("%s.displayGateMask" % self._camera)
         )
 
     def _toggle_filmgate(self):
@@ -1113,9 +1109,7 @@ class Attributes(QFlatDialog):
         # Second section: Display Attributes
         self.gate_mask_opacity_slider = QSlider(Qt.Horizontal)
         self.gate_mask_opacity_slider.setRange(0, 1000)
-        self.gate_mask_opacity_slider.setValue(
-            int(round(cmds.getAttr(self.cam + ".displayGateMaskOpacity") * 1000))
-        )
+        self.gate_mask_opacity_slider.setValue(int(round(cmds.getAttr(self.cam + ".displayGateMaskOpacity") * 1000)))
         self.gate_mask_opacity_value = QLineEdit()
         self.gate_mask_opacity_value.setText(str(self.get_float(self.gate_mask_opacity_slider.value())))
         self.gate_mask_opacity_value.setFixedWidth(DPI(80))
@@ -1190,19 +1184,12 @@ class Attributes(QFlatDialog):
         ]
 
         self.setBottomBar(
-            [
-                {
-                    "name": "OK",
-                    "callback": partial(self.apply_modifications, self.cam, close=True),
-                    "icon": return_icon_path("apply"),
-                    "highlight": True,
-                },
-                # {
-                #     "name": "Apply",
-                #     "callback": partial(self.apply_modifications, self.cam),
-                #     "icon": return_icon_path("apply"),
-                # }
-            ],
+            QFlatConfirmDialog.CustomButton(
+                "OK",
+                callback=partial(self.apply_modifications, self.cam, close=True),
+                icon=return_icon_path("apply"),
+                highlight=True,
+            ),
             closeButton=True,
         )
 
@@ -1238,14 +1225,10 @@ class Attributes(QFlatDialog):
         )
 
         self.gate_mask_opacity_slider.valueChanged.connect(
-            lambda: self.gate_mask_opacity_value.setText(
-                self.get_float(self.gate_mask_opacity_slider.value())
-            )
+            lambda: self.gate_mask_opacity_value.setText(self.get_float(self.gate_mask_opacity_slider.value()))
         )
 
-        self.gate_mask_color_picker.clicked.connect(
-            lambda: self.show_color_selector(self.gate_mask_color_picker)
-        )
+        self.gate_mask_color_picker.clicked.connect(lambda: self.show_color_selector(self.gate_mask_color_picker))
 
         self.gate_mask_color_slider.valueChanged.connect(
             lambda: self.update_button_value(self.gate_mask_color_slider.value())
@@ -1262,14 +1245,14 @@ class Attributes(QFlatDialog):
         return lock_btn
 
     def disconnect_locked_attr(self, attr, targets, lock_btn):
-        res = QMessageBox.question(
+        res = QFlatConfirmDialog.question(
             None,
             "Break connection",
-            "Are you sure you want to break the connection to\n'" + attr + "'?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            "Do you want to break the connection to\n'" + attr + "'?",
+            buttons=QFlatConfirmDialog.Yes | QFlatConfirmDialog.No,
+            highlight=QFlatConfirmDialog.No,
         )
-        if res != QMessageBox.Yes:
+        if res != QFlatConfirmDialog.Yes:
             return
         connections = cmds.listConnections(attr, plugs=True)
         if connections:
@@ -1333,18 +1316,14 @@ class Attributes(QFlatDialog):
         qcolor = QColor(*[int(q * 255) for q in rgb])
         h, s, v, _ = qcolor.getHsv()
         qcolor.setHsv(h, s, v)
-        self.gate_mask_color_picker.setStyleSheet(
-            "#gateMaskColorPicker { background-color: %s; }" % qcolor.name()
-        )
+        self.gate_mask_color_picker.setStyleSheet("#gateMaskColorPicker { background-color: %s; }" % qcolor.name())
         self.gate_mask_color_slider.setValue(v)
 
     def update_button_value(self, value):
         color = self.gate_mask_color_picker.palette().color(QPalette.Button)
         h, s, v, _ = color.getHsv()
         color.setHsv(h, s, value)
-        self.gate_mask_color_picker.setStyleSheet(
-            "#gateMaskColorPicker { background-color: %s; }" % color.name()
-        )
+        self.gate_mask_color_picker.setStyleSheet("#gateMaskColorPicker { background-color: %s; }" % color.name())
 
     def show_color_selector(self, button):
         initial_color = button.palette().color(QPalette.Base)
@@ -1495,9 +1474,7 @@ class DefaultSettings(QFlatDialog):
                     widget = value.itemAt(i).widget()
                     if isinstance(widget, QWidget):
                         checkbox.setChecked(widget.isEnabled())
-                        checkbox.toggled.connect(
-                            lambda checked=checkbox.isChecked(), v=widget: v.setEnabled(checked)
-                        )
+                        checkbox.toggled.connect(lambda checked=checkbox.isChecked(), v=widget: v.setEnabled(checked))
                 widget_container.addLayout(value)
             if isinstance(value, QWidget):
                 checkbox.setChecked(value.isEnabled())
@@ -1506,15 +1483,13 @@ class DefaultSettings(QFlatDialog):
             self.main_layout.addRow(widget_container)
 
         self.setBottomBar(
-            [
-                {
-                    "name": "OK",
-                    "callback": partial(self.apply_settings, close=True),
-                    "icon": return_icon_path("apply"),
-                    "highlight": True,
-                }
-            ],
+            buttons=QFlatConfirmDialog.CustomButton(
+                "OK",
+                callback=partial(self.apply_settings, close=True),
+                icon=return_icon_path("apply"),
+            ),
             closeButton=True,
+            highlight="OK",
         )
 
     def create_connections(self):
@@ -1523,14 +1498,10 @@ class DefaultSettings(QFlatDialog):
         )
 
         self.gate_mask_opacity_slider.valueChanged.connect(
-            lambda: self.gate_mask_opacity_value.setText(
-                self.get_float(self.gate_mask_opacity_slider.value())
-            )
+            lambda: self.gate_mask_opacity_value.setText(self.get_float(self.gate_mask_opacity_slider.value()))
         )
 
-        self.gate_mask_color_picker.clicked.connect(
-            lambda: self.show_color_selector(self.gate_mask_color_picker)
-        )
+        self.gate_mask_color_picker.clicked.connect(lambda: self.show_color_selector(self.gate_mask_color_picker))
 
         self.gate_mask_color_slider.valueChanged.connect(
             lambda: self.update_button_value(self.gate_mask_color_slider.value())
@@ -1554,18 +1525,14 @@ class DefaultSettings(QFlatDialog):
         qcolor = QColor(*[int(q * 255) for q in rgb])
         h, s, v, _ = qcolor.getHsv()
         qcolor.setHsv(h, s, v)
-        self.gate_mask_color_picker.setStyleSheet(
-            "#gateMaskColorPicker { background-color: %s; }" % qcolor.name()
-        )
+        self.gate_mask_color_picker.setStyleSheet("#gateMaskColorPicker { background-color: %s; }" % qcolor.name())
         self.gate_mask_color_slider.setValue(v)
 
     def update_button_value(self, value):
         color = self.gate_mask_color_picker.palette().color(QPalette.Button)
         h, s, v, _ = color.getHsv()
         color.setHsv(h, s, value)
-        self.gate_mask_color_picker.setStyleSheet(
-            "#gateMaskColorPicker { background-color: %s; }" % color.name()
-        )
+        self.gate_mask_color_picker.setStyleSheet("#gateMaskColorPicker { background-color: %s; }" % color.name())
 
     def show_color_selector(self, button):
         initial_color = button.palette().color(QPalette.Base)

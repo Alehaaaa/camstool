@@ -10,7 +10,6 @@ try:
     from PySide6.QtWidgets import (  # type: ignore
         QWidget,
         QApplication,
-        QMessageBox,
         QDialog,
         QInputDialog,
     )
@@ -22,7 +21,6 @@ except ImportError:
     from PySide2.QtWidgets import (
         QWidget,
         QApplication,
-        QMessageBox,
         QDialog,
         QInputDialog,
     )
@@ -97,19 +95,19 @@ def install_userSetup(uninstall=False):
 
 
 def unistall(ui):
-    box = QFlatConfirmDialog(
-        window="About to Uninstall",
-        title="Are you sure?",
-        message="Uninstalling Cams will remove ALL settings!\nThis action is NOT undoable.",
+    res = QFlatConfirmDialog.question(
+        None,
+        "About to Uninstall",
+        "Uninstalling Cams will remove ALL settings!\nThis action is NOT undoable.",
         buttons=[
-            {"name": "Uninstall", "positive": True, "icon": return_icon_path("remove")},
-            {"name": "Cancel", "positive": False, "icon": return_icon_path("close"), "highlight": True},
+            QFlatConfirmDialog.CustomButton("Uninstall", positive=True, icon=return_icon_path("remove")),
+            QFlatConfirmDialog.Cancel,
         ],
-        icon=return_icon_path("danger"),
-        closeButton=False,
+        highlight="Cancel",
+        icon=return_icon_path("danger.svg"),
     )
 
-    if box.confirm():
+    if res and res.get("name") == "Uninstall":
         install_userSetup(uninstall=True)
 
         toolsFolder = os.path.join(os.environ["MAYA_APP_DIR"], "scripts", "aleha_tools")
@@ -122,9 +120,7 @@ def unistall(ui):
                 elif os.path.isdir(f):
                     shutil.rmtree(f)
 
-        buttons = cmds.shelfLayout(
-            cmds.tabLayout(mel.eval("$nul=$gShelfTopLevel"), q=1, st=1), q=True, ca=True
-        )
+        buttons = cmds.shelfLayout(cmds.tabLayout(mel.eval("$nul=$gShelfTopLevel"), q=1, st=1), q=True, ca=True)
         if buttons:
             for b in buttons:
                 if cmds.shelfButton(b, exists=True) and cmds.shelfButton(b, q=True, l=True) == ui.TOOL:
@@ -226,11 +222,7 @@ def get_cam_display(cam_panels, command, plugin=False):
 def set_cam_display(cam_panels, command, plugin=False, switch=None):
     var = get_cam_display(cam_panels, command, plugin) if switch is None else not switch
     for i in cam_panels:
-        e_cmd = (
-            "pluginObjects=('{}', {})".format(command, not var)
-            if plugin
-            else "{}={}".format(command, not var)
-        )
+        e_cmd = "pluginObjects=('{}', {})".format(command, not var) if plugin else "{}={}".format(command, not var)
         try:
             eval("cmds.modelEditor('{}', e=1, {})".format(i, e_cmd))
         except Exception:
@@ -280,11 +272,7 @@ def get_panels_from_camera(cam):
         cam_shape = cam
 
     return list(
-        {
-            p
-            for p in cmds.getPanel(type="modelPanel")
-            if cmds.modelPanel(p, q=True, camera=True) in {cam, cam_shape}
-        }
+        {p for p in cmds.getPanel(type="modelPanel") if cmds.modelPanel(p, q=True, camera=True) in {cam, cam_shape}}
     )
 
 
@@ -423,16 +411,14 @@ def delete_cam(cam, ui):
         return
 
     if cmds.objExists(cam):
-        delete = QMessageBox()
-        response = delete.warning(
+        response = QFlatConfirmDialog.question(
             None,
             "Delete " + cam,
-            "Are you sure you want to delete " + cam + "?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,  # Uso de StandardButton
-            QMessageBox.StandardButton.No,  # Botón por defecto
+            "Do you want to delete " + cam + "?",
+            buttons=QFlatConfirmDialog.Yes | QFlatConfirmDialog.No,
+            highlight=QFlatConfirmDialog.No,
         )
-
-        if response == QMessageBox.StandardButton.Yes:
+        if response == QFlatConfirmDialog.Yes:
             if cmds.objExists(cam + ".cams_type"):
                 try:
                     delete_target = cmds.listRelatives(cam, allParents=True)[0]
@@ -520,7 +506,10 @@ def close_all_Windows(ui="CamsWorkspaceControl"):
 def close_UI(ui, confirm=True):
     if not ui:
         return
-    elif confirm and ui.confirm_exit:
+    elif ui.startup_run_cams:
+        confirm = False
+
+    if confirm and ui.confirm_exit:
         currentShelf = cmds.tabLayout(mel.eval("$nul=$gShelfTopLevel"), q=1, st=1)
         tool = ui.TITLE.lower()
 
@@ -535,19 +524,22 @@ def close_UI(ui, confirm=True):
             return False
 
         if not find():
-            box = QFlatConfirmDialog(
-                window="About to close Cams!",
-                title="Are you sure?",
-                message="Closing Cams will NOT reopen the UI on Maya's next launch.\nYou will have to use a Shelf button or run Cams launch script.",
+            res = QFlatConfirmDialog.question(
+                None,
+                "About to close Cams!",
+                "Closing Cams will NOT reopen the UI on Maya's next launch.\nYou will have to use a Shelf button or run Cams launch script.",
                 buttons=[
-                    {"name": "Yes", "positive": True},
-                    {"name": "Add to Shelf", "positive": True},
-                    {"name": "Cancel", "positive": False, "icon": return_icon_path("close")},
+                    QFlatConfirmDialog.Yes,
+                    QFlatConfirmDialog.CustomButton("Add to Shelf", positive=True, icon=return_icon_path("add")),
+                    QFlatConfirmDialog.Cancel,
                 ],
+                highlight="Add to Shelf",
+                icon=return_icon_path("warning.svg"),
+                closeButton=False,
             )
 
-            if box.confirm():
-                if box.clicked_button == "Add to Shelf":
+            if res and res.get("positive"):
+                if res.get("name") == "Add to Shelf":
                     from . import updater
 
                     updater.add_shelf_button(tool="cams")
@@ -562,6 +554,11 @@ def run_tools(tool, ui=None):
     if get_python_version() > 2:
         try:
             import importlib
+            from . import base_widgets, widgets, util
+
+            importlib.reload(base_widgets)
+            importlib.reload(widgets)
+            importlib.reload(util)
 
             tool_module = importlib.import_module("aleha_tools._tools." + tool)
             importlib.reload(tool_module)
@@ -681,12 +678,12 @@ def changes_compiler():
     try:
         changelog = _run_method(_load_module(path, name), cls, method, script_path, local_version)
         if changelog:
-            QFlatConfirmDialog(
-                window="Changelog",
-                title="Recent Changes",
-                message="- " + "\n- ".join(changelog),
-                buttons=["Ok"],
-                exclusive=False,
-            ).confirm()
+            QFlatConfirmDialog.question(
+                None,
+                "Changelog",
+                "- " + "\n- ".join(changelog),
+                buttons=QFlatConfirmDialog.Ok,
+                closeButton=False,
+            )
     except (ImportError, AttributeError) as e:
         print("Changelog Error: %s" % e)

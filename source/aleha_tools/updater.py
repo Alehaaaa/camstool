@@ -7,7 +7,11 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 from http.client import responses
-from importlib import reload
+
+try:
+    from importlib import reload
+except ImportError:
+    pass
 
 import maya.cmds as cmds
 import maya.mel as mel
@@ -124,21 +128,19 @@ def add_shelf_button(tool, command):
             annotation=tool.title() + " by Aleha",
         )
 
-        QFlatConfirmDialog(
-            window="Success",
-            title="Added Shelf Button",
-            message="Added a Button for " + tool.title() + " to the current shelf.",
-            buttons=["Ok"],
-            exclusive=False,
-        ).confirm()
+        QFlatConfirmDialog.question(
+            None,
+            "Success",
+            "Added a Button for %s to the current shelf." % tool.title(),
+            buttons=QFlatConfirmDialog.Ok,
+            highlight=QFlatConfirmDialog.Ok,
+        )
 
 
 def get_latest_version():
     current_version_url = REPO + "version"
     try:
-        with urllib.request.urlopen(
-            current_version_url, context=unverified_ssl_context, timeout=30
-        ) as response:
+        with urllib.request.urlopen(current_version_url, context=unverified_ssl_context, timeout=30) as response:
             if response.status != 200:
                 error_message = responses.get(response.status, "Unknown Error")
                 util.make_inViewMessage(NO_SERVER_ERROR % (response.status, error_message))
@@ -164,9 +166,7 @@ def get_latest_version():
 def _get_changelog():
     current_version_url = REPO + "release_notes.json"
     try:
-        with urllib.request.urlopen(
-            current_version_url, context=unverified_ssl_context, timeout=30
-        ) as response:
+        with urllib.request.urlopen(current_version_url, context=unverified_ssl_context, timeout=30) as response:
             if response.status == 200:
                 text = response.read().decode("utf-8")
                 if not text:
@@ -225,9 +225,7 @@ def _check_for_updates(ui, warning=True, force=False):
 
         elif comp < 0:
             if warning:
-                util.make_inViewMessage(
-                    "You are using an unpublished\nversion <hl>" + installed_verion + "</hl></div>"
-                )
+                util.make_inViewMessage("You are using an unpublished\nversion <hl>" + installed_verion + "</hl></div>")
             return
 
     changelog = _get_changelog()
@@ -239,47 +237,44 @@ def _check_for_updates(ui, warning=True, force=False):
         if warning:
             util.make_inViewMessage(
                 "<hl>Updates are blocked</hl>\nPlease wait until the problem is solved.",
-                "warning",
+                "warning.svg",
             )
         return
 
     last_release_notes = changelog.get("versions", {}).get(latest_version, [])
     formated_changelog = "\n".join(["- " + line for line in last_release_notes])
 
-    funcs.install_userSetup()
-
     update_available = QFlatConfirmDialog(
         window="Update for " + ui.TITLE,
-        title="Version %s available, you are using %s" % (latest_version, installed_verion),
+        title="<b>Version %s available</b><br>(using %s)" % (latest_version, installed_verion),
         message=formated_changelog,
+        icon=util.return_icon_path("update.svg"),
         buttons=[
-            {
-                "name": "Install",
-                "positive": True,
-                "icon": util.return_icon_path("install"),
-                "highlight": True,
-            },
-            {"name": "Skip", "positive": True, "icon": util.return_icon_path("skip")},
+            QFlatConfirmDialog.CustomButton("Install", positive=True, icon=util.return_icon_path("install")),
+            QFlatConfirmDialog.CustomButton("Skip", positive=True, icon=util.return_icon_path("skip")),
         ],
+        highlight="Install",
         exclusive=False,
+        parent=ui,
     )
+    update_available.title_label.setWordWrap(False)
+    update_available.adjustSize()
 
     if update_available.confirm():
+        funcs.install_userSetup()
+
         if update_available.clicked_button == "Install":
             from . import updater
 
-            try:
-                reload(updater)
-            except ImportError:
-                pass
+            reload(updater)
 
             command = "import aleha_tools.cams as cams\ncams.show()"
-            if not install(ui.TITLE.lower(), command):
+            if not updater.install(ui.TITLE.lower(), command):
                 return
 
             reload_command = command.replace(
                 "\n",
-                "\ntry: from importlib import reload\nexcept ImportError: pass\nreload(cams)\n",
+                ";try: from importlib import reload;except ImportError: pass;reload(cams);",
             )
             cmds.evalDeferred(reload_command)
 

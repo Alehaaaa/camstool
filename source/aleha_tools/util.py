@@ -1,4 +1,5 @@
 import sys
+import re
 from pathlib import Path
 import maya.cmds as cmds
 import maya.OpenMayaUI as omui
@@ -22,10 +23,13 @@ def DPI(val):
     return omui.MQtUtil.dpiScale(val)
 
 
-def return_icon_path(icon):
-    if "." not in icon:
-        icon = icon + ".png"
-    return str(Path(__file__).parent / "_icons" / icon)
+def return_icon_path(icon: str) -> str:
+    icon_path = Path(icon)
+    # Only add .png if there is no extension
+    if not icon_path.suffix:
+        icon_path = icon_path.with_suffix(".png")
+
+    return str(Path(__file__).parent / "_icons" / icon_path.name)
 
 
 def make_inViewMessage(message, icon="camera"):
@@ -76,7 +80,9 @@ def get_python_version():
     return sys.version_info.major
 
 
-def get_maya_qt(ptr=omui.MQtUtil.mainWindow(), qt=QMainWindow):
+def get_maya_qt(ptr=None, qt=QMainWindow):
+    if ptr is None:
+        ptr = omui.MQtUtil.mainWindow()
     return wrapInstance(long(ptr), qt)
 
 
@@ -110,24 +116,23 @@ def get_root_path():
 
 def compare_versions(v1, v2):
     """
-    Compares two version strings.
+    Compares two version strings segment by segment using tokenization.
+    Tokens are compared as strings to support non-standard versioning like '0.2.6' > '0.2.51'.
     Returns:
         -1 if v1 < v2
          0 if v1 == v2
          1 if v1 > v2
     """
-    import re
 
     def tokenize(v):
-        return [int(s) if s.isdigit() else s.lower() for s in re.split(r"(\d+)", str(v)) if s]
+        # Split by non-alphanumeric characters or transitions between digits and letters
+        return [s.lower() for s in re.split(r"(\d+)", str(v)) if s]
 
     t1, t2 = tokenize(v1), tokenize(v2)
 
     for p1, p2 in zip(t1, t2):
         if p1 == p2:
             continue
-        if type(p1) is not type(p2):
-            p1, p2 = str(p1), str(p2)
         return (p1 > p2) - (p1 < p2)
 
     return (len(t1) > len(t2)) - (len(t1) < len(t2))
