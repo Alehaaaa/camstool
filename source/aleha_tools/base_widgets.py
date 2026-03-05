@@ -508,7 +508,7 @@ class QFlatConfirmDialog(QFlatDialog):
         **kwargs,
     ):
         """Static-like helper to create and show a confirm dialog."""
-        if buttons is None:
+        if buttons is None and not closeButton:
             buttons = [cls.Yes, cls.No]
         dlg = cls(
             window=window,
