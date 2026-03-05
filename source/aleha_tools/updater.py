@@ -13,6 +13,11 @@ try:
 except ImportError:
     pass
 
+try:
+    from PySide6.QtCore import QTimer
+except ImportError:
+    from PySide2.QtCore import QTimer
+
 import maya.cmds as cmds
 import maya.mel as mel
 
@@ -167,62 +172,78 @@ def add_shelf_button(tool, command):
         )
 
 
-def get_latest_version():
-    current_version_url = REPO + "version"
+def _fetch_repo_file(filename):
+    sha = "main"
+    if "raw.githubusercontent.com" in REPO:
+        parts = str(REPO).split("raw.githubusercontent.com/")[-1].strip("/").split("/")
+        if len(parts) >= 2:
+            owner, repo = parts[0], parts[1]
+            branch = parts[2] if len(parts) > 2 else "main"
+            api_url = "https://api.github.com/repos/%s/%s/commits/%s" % (owner, repo, branch)
+            try:
+                req = urllib.request.Request(api_url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, context=unverified_ssl_context, timeout=10) as response:
+                    if response.status == 200:
+                        data = json.loads(response.read().decode("utf-8"))
+                        if "sha" in data:
+                            sha = data["sha"]
+            except Exception:
+                pass
+
+    url = REPO.replace("/main/", "/%s/" % sha) + filename
+    success, result = _download_text(url)
+
+    if not success and sha != "main":
+        success, result = _download_text(REPO + filename)
+
+    return success, result
+
+
+def _download_text(url):
     try:
-        with urllib.request.urlopen(current_version_url, context=unverified_ssl_context, timeout=30) as response:
-            if response.status != 200:
-                error_message = responses.get(response.status, "Unknown Error")
-                util.make_inViewMessage(NO_SERVER_ERROR % (response.status, error_message))
-                return None
-
-            text = response.read().decode("utf-8")
-            if not text:
-                util.make_inViewMessage(NO_DATA_ERROR)
-                return None
-
-            return text.strip()
-
-    except urllib.error.URLError as e:
-        util.make_inViewMessage("Network error: %s" % e)
-    except TimeoutError:
-        util.make_inViewMessage("Connection timed out.")
-    except Exception as e:
-        util.make_inViewMessage("Unexpected error: %s" % e)
-
-    return None
-
-
-def _get_changelog():
-    current_version_url = REPO + "release_notes.json"
-    try:
-        with urllib.request.urlopen(current_version_url, context=unverified_ssl_context, timeout=30) as response:
+        with urllib.request.urlopen(url, context=unverified_ssl_context, timeout=30) as response:
             if response.status == 200:
                 text = response.read().decode("utf-8")
                 if not text:
-                    data = {}
-                    util.make_inViewMessage(NO_DATA_ERROR)
-                else:
-                    data = json.loads(text)
-                return data
+                    return False, NO_DATA_ERROR
+                return True, text
             else:
                 error_message = responses.get(response.status, "Unknown Error")
-                util.make_inViewMessage(NO_SERVER_ERROR % (response.status, error_message))
-                return None
+                return False, NO_SERVER_ERROR % (response.status, error_message)
     except urllib.error.URLError as e:
-        util.make_inViewMessage("Network error: %s" % e)
-        return None
+        reason = getattr(e, "reason", e)
+        return False, "Network error: %s" % reason
     except TimeoutError:
-        util.make_inViewMessage("Connection timed out.")
-        return None
+        return False, "Connection timed out."
+    except Exception as e:
+        return False, "Unexpected error: %s" % e
+
+
+def get_latest_version():
+    success, result = _fetch_repo_file("version")
+    if success:
+        return True, result.strip()
+    return False, result
+
+
+def _get_changelog():
+    success, result = _fetch_repo_file("release_notes.json")
+    if success:
+        try:
+            return True, json.loads(result)
+        except Exception:
+            return False, "Error parsing changelog data."
+    return False, result
 
 
 # Check for Updates
 def _check_for_updates(ui, warning=True, force=False):
     installed_verion = ui.VERSION
 
-    latest_version = get_latest_version()
-    if not latest_version:
+    success, latest_version = get_latest_version()
+    if not success:
+        if warning:
+            util.make_inViewMessage(latest_version)
         return
 
     comp = compare_versions(latest_version, installed_verion)
@@ -237,8 +258,10 @@ def _check_for_updates(ui, warning=True, force=False):
                 util.make_inViewMessage("You are using an unpublished\nversion <hl>" + installed_verion + "</hl></div>")
             return
 
-    changelog = _get_changelog()
-    if not changelog:
+    success, changelog = _get_changelog()
+    if not success:
+        if warning:
+            util.make_inViewMessage(changelog)
         return
 
     is_blocked = bool(changelog.get("blocked", False))
@@ -281,14 +304,23 @@ def _check_for_updates(ui, warning=True, force=False):
             if not updater.install(ui.TITLE.lower(), command):
                 return
 
-            reload_command = "import aleha_tools.cams as cams; from importlib import reload; reload(cams); cams.show()"
-            cmds.evalDeferred(reload_command)
+            def _post_update():
+                import aleha_tools.cams as cams
+                from importlib import reload
 
-            cmds.evalDeferred(
-                'from aleha_tools.base_widgets import QFlatConfirmDialog; QFlatConfirmDialog.question(None, "%s Update", "Update finished successfully to version <b>%s</b>.", buttons=["Ok"], highlight=False, title="Success")'
-                % (ui.TITLE, latest_version.replace("\n", "").replace("\r", "")),
-                lowestPriority=True,
-            )
+                reload(cams)
+                cams.show()
+                QFlatConfirmDialog.question(
+                    None,
+                    "%s Update" % ui.TITLE,
+                    "Update finished successfully to version <b>%s</b>."
+                    % latest_version.replace("\n", "").replace("\r", ""),
+                    buttons=["Ok"],
+                    highlight=False,
+                    title="Success",
+                )
+
+            QTimer.singleShot(0, _post_update)
             ui.process_prefs(skip_update=False)
 
         elif update_available.clicked_button == "Skip":

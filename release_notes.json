@@ -1,5 +1,9 @@
 {
     "versions": {
+        "0.2.64beta-hotfix": [
+            "Checking updates now picks up latest version ASAP.",
+            "Working on updater, keep calm."
+        ],
         "0.2.63beta-hotfix": [
             "Hotfix for updater."
         ],

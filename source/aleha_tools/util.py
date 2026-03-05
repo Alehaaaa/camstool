@@ -123,6 +123,8 @@ def compare_versions(v1, v2):
          0 if v1 == v2
          1 if v1 > v2
     """
+    if v1 == v2:
+        return 0
 
     def tokenize(v):
         # Split by non-alphanumeric characters or transitions between digits and letters
