@@ -183,7 +183,7 @@ class FlatButton(QPushButton):
             background-color: %s;
             border: none;
             border-radius: %spx;
-            padding: 8px 12px;
+            padding: %spx %spx;
             font-weight: %s;
             font-size: %spx;
         }
@@ -220,22 +220,23 @@ class FlatButton(QPushButton):
     ):
         super().__init__(text, parent)
         self.setFlat(True)
-        self.setFixedHeight(32)
         self.setCursor(Qt.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumHeight(DPI(34))
 
         if icon_path:
-            self.setIconSize(QSize(20, 20))
+            self.setIconSize(QSize(DPI(18), DPI(18)))
             HoverableIcon.apply(self, icon_path, highlight=highlight)
 
         if highlight:
-            self.setIconSize(QSize(24, 24))
+            self.setIconSize(QSize(DPI(22), DPI(22)))
             color = self.HIGHLIGHT_COLOR
             background = self.HIGHLIGHT_BACKGROUND
             hover_background = self.HIGHLIGHT_HOVER_BACKGROUND
             pressed_background = self.HIGHLIGHT_PRESSED_BACKGROUND
             font_size = self.HIGHLIGHT_FONT_SIZE
             weight = "bold"
+            v_padding = 8
         elif background != self.DEFAULT_BACKGROUND:
             try:
                 base_background = int(background.lstrip("#"), 16)
@@ -250,11 +251,13 @@ class FlatButton(QPushButton):
             pressed_background = "#%02x%02x%02x" % (max(r - 10, 0), max(g - 10, 0), max(b - 10, 0))
             font_size = self.DEFAULT_FONT_SIZE
             weight = "normal"
+            v_padding = 6
         else:
             hover_background = self.DEFAULT_HOVER_BACKGROUND
             pressed_background = self.DEFAULT_PRESSED_BACKGROUND
             font_size = self.DEFAULT_FONT_SIZE
             weight = "normal"
+            v_padding = 6
 
         self.setStyleSheet(
             self.STYLE_SHEET
@@ -262,6 +265,8 @@ class FlatButton(QPushButton):
                 color,
                 background,
                 border * 1.4,
+                DPI(v_padding),
+                DPI(12),
                 weight,
                 font_size,
                 hover_background,
@@ -291,14 +296,14 @@ class QFlatDialog(QDialog):
     BORDER_RADIUS = 5
 
     # Button Preconfigurations
-    CustomButton = DialogButton
-
     Yes = DialogButton("Yes", positive=True, icon=return_icon_path("apply"))
     Ok = DialogButton("Ok", positive=True, icon=return_icon_path("apply"))
 
     No = DialogButton("No", positive=False, icon=return_icon_path("cancel"))
     Cancel = DialogButton("Cancel", positive=False, icon=return_icon_path("cancel"))
     Close = DialogButton("Close", positive=False, icon=return_icon_path("close"))
+
+    CustomButton = DialogButton
 
     def __init__(self, parent=None, buttons=None, highlight=None, closeButton=False):
         if parent is None:
@@ -308,11 +313,13 @@ class QFlatDialog(QDialog):
         self.setWindowFlags(self.windowFlags() | Qt.Tool)
 
         self.root_layout = QVBoxLayout(self)
+        self.root_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
         self.root_layout.setContentsMargins(0, 0, 0, 0)
         self.root_layout.setSpacing(0)
 
         self.bottomBar = None
-        self.highlighted_button = highlight
+
+        self._highlighted = highlight
         self._buttons_to_init = buttons
         self._default_button = None
 
@@ -332,8 +339,8 @@ class QFlatDialog(QDialog):
 
             # Handle automatic highlighting if matches highlight name or dict
             is_highlighted = config.get("highlight", False)
-            if self.highlighted_button:
-                if btn_data == self.highlighted_button or config.get("name") == self.highlighted_button:
+            if self._highlighted:
+                if btn_data == self._highlighted or config.get("name") == self._highlighted:
                     is_highlighted = True
 
             btn = FlatButton(
@@ -373,7 +380,7 @@ class QFlatDialog(QDialog):
             self.bottomBar = None
 
         if highlight:
-            self.highlighted_button = highlight
+            self._highlighted = highlight
 
         # Prepare button data list
         btn_data = []
@@ -424,7 +431,6 @@ class QFlatConfirmDialog(QFlatDialog):
             self.setParent(parent)
 
         self.setAttribute(Qt.WA_DeleteOnClose, False)
-        self.root_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
         self.setWindowTitle(window or "Confirm")
         self.clicked_button = None
 

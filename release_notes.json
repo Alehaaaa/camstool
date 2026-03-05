@@ -1,5 +1,12 @@
 {
     "versions": {
+        "0.2.66": [
+            "Added back SpaceSwitch with new layout improvements.",
+            "DPI scaling for buttons.",
+            "Dynamic button padding.",
+            "Improved layout sizing.",
+            "Internal refactoring."
+        ],
         "0.2.65": [
             "Smooth background update checks on startup."
         ],
