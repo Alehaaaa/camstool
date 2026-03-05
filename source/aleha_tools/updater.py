@@ -44,8 +44,38 @@ def download(downloadUrl, saveFile):
         cmds.warning("Error trying to install.")
         return
 
-    with open(saveFile, "wb") as output:
-        output.write(response.read())
+    total_size = response.getheader("Content-Length")
+    total_size = int(total_size) if total_size else 0
+    block_size = 8192
+
+    try:
+        gMainProgressBar = mel.eval("$tmp = $gMainProgressBar")
+        if total_size > 0 and gMainProgressBar:
+            cmds.progressBar(
+                gMainProgressBar,
+                edit=True,
+                beginProgress=True,
+                isInterruptable=False,
+                status="Downloading Update...",
+                maxValue=total_size,
+            )
+    except Exception:
+        gMainProgressBar = None
+
+    downloaded = 0
+    try:
+        with open(saveFile, "wb") as output:
+            while True:
+                buffer = response.read(block_size)
+                if not buffer:
+                    break
+                downloaded += len(buffer)
+                output.write(buffer)
+                if gMainProgressBar and total_size > 0:
+                    cmds.progressBar(gMainProgressBar, edit=True, progress=downloaded)
+    finally:
+        if gMainProgressBar and total_size > 0:
+            cmds.progressBar(gMainProgressBar, edit=True, endProgress=True)
 
     return True
 
@@ -77,7 +107,7 @@ def install(tool, command=None, file_path=None):
     # Remove old tool files
     if toolsFolder.is_dir():
         for filename in toolsFolder.iterdir():
-            if ((tool in filename.name) or ("updater" in filename.name)) and (filename.name != "_pref"):
+            if filename.name != "_prefs":
                 if filename.is_file():
                     filename.unlink()
                 elif filename.is_dir():
@@ -187,23 +217,6 @@ def _get_changelog():
         return None
 
 
-def install_update(latest_version):
-    """Performs the actual update installation."""
-    command = "import aleha_tools.cams as cams\ncams.show()"
-    if not install("cams", command):  # Assuming "cams" is the tool name for the main package
-        raise RuntimeError("Failed to install update files.")
-
-    # Reload the main module if it's already loaded
-    reload_command = "import aleha_tools.cams as cams; from importlib import reload; reload(cams); cams.show()"
-    cmds.evalDeferred(reload_command)
-
-    cmds.evalDeferred(
-        'from aleha_tools import util; util.make_inViewMessage("Update finished successfully<hl>%s</hl>")'
-        % latest_version.replace("\n", "").replace("\r", ""),
-        lowestPriority=True,
-    )
-
-
 # Check for Updates
 def _check_for_updates(ui, warning=True, force=False):
     installed_verion = ui.VERSION
@@ -272,8 +285,8 @@ def _check_for_updates(ui, warning=True, force=False):
             cmds.evalDeferred(reload_command)
 
             cmds.evalDeferred(
-                'from aleha_tools import util; util.make_inViewMessage("Update finished successfully<hl>%s</hl>")'
-                % latest_version.replace("\n", "").replace("\r", ""),
+                'from aleha_tools.base_widgets import QFlatConfirmDialog; QFlatConfirmDialog.question(None, "%s Update", "Update finished successfully to version <b>%s</b>.", buttons=["Ok"], highlight=False, title="Success")'
+                % (ui.TITLE, latest_version.replace("\n", "").replace("\r", "")),
                 lowestPriority=True,
             )
             ui.process_prefs(skip_update=False)

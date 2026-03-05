@@ -1,5 +1,8 @@
 {
     "versions": {
+        "0.2.63beta-hotfix": [
+            "Hotfix for updater."
+        ],
         "0.2.62beta": [
             "Update super() calls.",
             "Improved UI close logic.",
