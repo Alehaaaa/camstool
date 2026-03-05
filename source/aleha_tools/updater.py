@@ -14,9 +14,9 @@ except ImportError:
     pass
 
 try:
-    from PySide6.QtCore import QTimer
+    from PySide6.QtCore import QTimer, QThread, Signal
 except ImportError:
-    from PySide2.QtCore import QTimer
+    from PySide2.QtCore import QTimer, QThread, Signal
 
 import maya.cmds as cmds
 import maya.mel as mel
@@ -280,94 +280,122 @@ def _get_changelog():
 
 
 # Check for Updates
+class UpdateCheckWorker(QThread):
+    finished = Signal(bool, object, object)  # success, latest_version, changelog
+
+    def __init__(self, installed_version):
+        super().__init__()
+        self.installed_version = installed_version
+
+    def run(self):
+        success, latest_version = get_latest_version()
+        if not success:
+            self.finished.emit(False, latest_version, None)
+            return
+
+        comp = compare_versions(latest_version, self.installed_version)
+        if comp <= 0:
+            self.finished.emit(True, None, None)
+            return
+
+        success, changelog = _get_changelog()
+        if not success:
+            self.finished.emit(False, changelog, None)
+            return
+
+        self.finished.emit(True, latest_version, changelog)
+
+
 def _check_for_updates(ui, warning=True, force=False):
-    installed_verion = ui.VERSION
+    installed_version = ui.VERSION
 
-    success, latest_version = get_latest_version()
-    if not success:
-        if warning:
-            util.make_inViewMessage(latest_version)
-        return
-
-    comp = compare_versions(latest_version, installed_verion)
-    if not force:
-        if comp == 0:
+    def handle_result(success, latest_version, changelog):
+        if not success:
             if warning:
-                util.make_inViewMessage("<hl>" + installed_verion + "</hl>\nYou are up-to-date.")
+                util.make_inViewMessage(latest_version)  # latest_version contains error msg here
             return
 
-        elif comp < 0:
+        if latest_version is None:
             if warning:
-                util.make_inViewMessage("You are using an unpublished\nversion <hl>" + installed_verion + "</hl></div>")
+                util.make_inViewMessage("<hl>" + installed_version + "</hl>\nYou are up-to-date.")
             return
 
-    success, changelog = _get_changelog()
-    if not success:
-        if warning:
-            util.make_inViewMessage(changelog)
-        return
-
-    is_blocked = bool(changelog.get("blocked", False))
-    if is_blocked:
-        if warning:
-            util.make_inViewMessage(
-                "<hl>Updates are blocked</hl>\nPlease wait until the problem is solved.",
-                "warning.svg",
-            )
-        return
-
-    last_release_notes = changelog.get("versions", {}).get(latest_version, [])
-    formated_changelog = "<br>".join(["- " + line for line in last_release_notes])
-
-    update_available = QFlatConfirmDialog(
-        window="Update for " + ui.TITLE,
-        title="<b>Version %s available</b><br>(using %s)" % (latest_version, installed_verion),
-        message=formated_changelog,
-        icon=util.return_icon_path("update.svg"),
-        buttons=[
-            QFlatConfirmDialog.CustomButton("Install", positive=True, icon=util.return_icon_path("install")),
-            QFlatConfirmDialog.CustomButton("Skip", positive=True, icon=util.return_icon_path("skip")),
-        ],
-        highlight="Install",
-        exclusive=False,
-        parent=ui,
-    )
-    update_available.title_label.setWordWrap(False)
-    update_available.adjustSize()
-
-    if update_available.confirm():
-        funcs.install_userSetup()
-
-        if update_available.clicked_button == "Install":
-            from . import updater
-
-            reload(updater)
-
-            command = "import aleha_tools.cams as cams\ncams.show()"
-            if not updater.install(ui.TITLE.lower(), command):
-                return
-
-            def _post_update():
-                import aleha_tools
-                import aleha_tools.cams as cams
-                from importlib import reload
-
-                reload(aleha_tools)
-                reload(cams)
-                cams.show()
-                QFlatConfirmDialog.question(
-                    None,
-                    "%s Update" % ui.TITLE,
-                    "You have successfully updated the tool!<br><br>"
-                    + "These were the last changes:<br>"
-                    + formated_changelog,
-                    title="Installed %s" % latest_version.replace("\n", "").replace("\r", ""),
-                    icon=util.return_icon_path("success.svg"),
-                    closeButton=True,
+        # Latest version found, process it
+        is_blocked = bool(changelog.get("blocked", False))
+        if is_blocked:
+            if warning:
+                util.make_inViewMessage(
+                    "<hl>Updates are blocked</hl>\nPlease wait until the problem is solved.",
+                    "warning.svg",
                 )
+            return
 
-            QTimer.singleShot(0, _post_update)
-            ui.process_prefs(skip_update=False)
+        last_release_notes = changelog.get("versions", {}).get(latest_version, [])
+        formated_changelog = "<br>".join(["- " + line for line in last_release_notes])
 
-        elif update_available.clicked_button == "Skip":
-            ui.process_prefs(skip_update=True)
+        update_available = QFlatConfirmDialog(
+            window="Update for " + ui.TITLE,
+            title="<b>Version %s available</b><br>(using %s)" % (latest_version, installed_version),
+            message=formated_changelog,
+            icon=util.return_icon_path("update.svg"),
+            buttons=[
+                QFlatConfirmDialog.CustomButton("Install", positive=True, icon=util.return_icon_path("install")),
+                QFlatConfirmDialog.CustomButton("Skip", positive=True, icon=util.return_icon_path("skip")),
+            ],
+            highlight="Install",
+            exclusive=False,
+            parent=ui,
+        )
+        update_available.title_label.setWordWrap(False)
+        update_available.adjustSize()
+
+        if update_available.confirm():
+            funcs.install_userSetup()
+
+            if update_available.clicked_button == "Install":
+                from . import updater
+
+                reload(updater)
+
+                command = "import aleha_tools.cams as cams\ncams.show()"
+                if not updater.install(ui.TITLE.lower(), command):
+                    return
+
+                def _post_update():
+                    import aleha_tools
+                    import aleha_tools.cams as cams
+                    from importlib import reload
+
+                    reload(aleha_tools)
+                    reload(cams)
+                    cams.show()
+                    QFlatConfirmDialog.question(
+                        None,
+                        "%s Update" % ui.TITLE,
+                        "You have successfully updated the tool!<br><br>"
+                        + "These were the last changes:<br>"
+                        + formated_changelog,
+                        title="Installed %s" % latest_version.replace("\n", "").replace("\r", ""),
+                        icon=util.return_icon_path("success.svg"),
+                        closeButton=True,
+                    )
+
+                QTimer.singleShot(0, _post_update)
+                ui.process_prefs(skip_update=False)
+
+            elif update_available.clicked_button == "Skip":
+                ui.process_prefs(skip_update=True)
+
+    if not force:
+        # For startup/regular checks, use the thread
+        ui._update_worker = UpdateCheckWorker(installed_version)
+        ui._update_worker.finished.connect(handle_result)
+        # Delay startup check slightly to ensure UI is ready
+        QTimer.singleShot(1000 if not warning else 0, ui._update_worker.start)
+    else:
+        # For force=True (manual triggered), do it synchronously to show immediate feedback if needed
+        # Or just use the same worker but start immediately.
+        # Actually, let's just use the worker for everything to be consistent.
+        ui._update_worker = UpdateCheckWorker("0.0.0")  # Force update by spoofing version
+        ui._update_worker.finished.connect(handle_result)
+        ui._update_worker.start()

@@ -1,8 +1,12 @@
 {
     "versions": {
+        "0.2.65": [
+            "Smooth background update checks on startup."
+        ],
         "0.2.64beta-hotfix": [
             "Checking updates now picks up latest version ASAP.",
-            "Working on updater, keep calm."
+            "Proper support for custom installation paths.",
+            "Improved text formatting and UI fixes."
         ],
         "0.2.63beta-hotfix": [
             "Hotfix for updater."
