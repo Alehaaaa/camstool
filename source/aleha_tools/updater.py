@@ -211,8 +211,7 @@ def add_shelf_button(tool, command):
             None,
             "Success",
             "Added a Button for %s to the current shelf." % tool.title(),
-            buttons=QFlatConfirmDialog.Ok,
-            highlight=QFlatConfirmDialog.Ok,
+            closeButton=True,
         )
 
 
@@ -363,9 +362,8 @@ def _check_for_updates(ui, warning=True, force=False):
                     + "These were the last changes:<br>"
                     + formated_changelog,
                     title="Installed %s" % latest_version.replace("\n", "").replace("\r", ""),
-                    buttons=["Ok"],
-                    highlight=False,
                     icon=util.return_icon_path("success.svg"),
+                    closeButton=True,
                 )
 
             QTimer.singleShot(0, _post_update)

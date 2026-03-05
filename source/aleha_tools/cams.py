@@ -729,9 +729,13 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             self.open_github_desktop.triggered.connect(
                 partial(
                     os.startfile,
-                    r"C:\Users\aleha\AppData\Local\GitHubDesktop\GitHubDesktop.exe",
+                    "C:\\Users\\" + os.getlogin() + "\\AppData\\Local\\GitHubDesktop\\GitHubDesktop.exe",
                 )
             )
+        elif sys.platform == "darwin":
+            import subprocess
+
+            self.open_github_desktop.triggered.connect(lambda: subprocess.call(["open", "-a", "GitHub Desktop"]))
 
         self.open_release_notes.triggered.connect(self.open_release_notes_function)
 
