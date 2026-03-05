@@ -81,21 +81,45 @@ def download(downloadUrl, saveFile):
     finally:
         if gMainProgressBar and total_size > 0:
             cmds.progressBar(gMainProgressBar, edit=True, endProgress=True)
-
     return True
 
 
 def install(tool, command=None, file_path=None):
-    scriptPath = Path(os.environ["MAYA_APP_DIR"]) / "scripts"
+    # Derive the actual installation path of `aleha_tools`
+    toolsFolder = Path(__file__).resolve().parent
+    scriptPath = toolsFolder.parent
+
     tmpZipFile = scriptPath / "tmp.zip"
 
     if tmpZipFile.is_file():
-        tmpZipFile.unlink()
+        try:
+            tmpZipFile.unlink()
+        except OSError:
+            pass
 
     if file_path:
         shutil.copy(file_path, tmpZipFile)
     else:
-        FileUrl = REPO + "/versions/aleha_tools-latest.zip"
+        # We need to make sure we're grabbing the most up-to-date `.zip`
+        # Because raw.githubusercontent caches, we can use the explicit SHA
+        sha = "main"
+        if "raw.githubusercontent.com" in REPO:
+            parts = str(REPO).split("raw.githubusercontent.com/")[-1].strip("/").split("/")
+            if len(parts) >= 2:
+                owner, repo = parts[0], parts[1]
+                branch = parts[2] if len(parts) > 2 else "main"
+                try:
+                    api_url = "https://api.github.com/repos/%s/%s/commits/%s" % (owner, repo, branch)
+                    req = urllib.request.Request(api_url, headers={"User-Agent": "Mozilla/5.0"})
+                    with urllib.request.urlopen(req, context=unverified_ssl_context, timeout=10) as response:
+                        if response.status == 200:
+                            data = json.loads(response.read().decode("utf-8"))
+                            sha = data.get("sha", "main")
+                except Exception:
+                    pass
+
+        # Download the main source archive directly to ensure we get the latest uncached files
+        FileUrl = "https://github.com/Alehaaaa/camstool/archive/%s.zip" % sha
         download(FileUrl, tmpZipFile)
 
     if not tmpZipFile.is_file():
@@ -107,28 +131,47 @@ def install(tool, command=None, file_path=None):
     if not fileList:
         return cmds.error("Error trying to install.")
 
-    toolsFolder = scriptPath / Path(fileList[0]).parts[0]
-
     # Remove old tool files
     if toolsFolder.is_dir():
         for filename in toolsFolder.iterdir():
             if filename.name != "_prefs":
                 if filename.is_file():
-                    filename.unlink()
+                    try:
+                        filename.unlink()
+                    except OSError:
+                        pass
                 elif filename.is_dir():
-                    shutil.rmtree(filename)
+                    try:
+                        shutil.rmtree(filename)
+                    except OSError:
+                        pass
 
     for name in fileList:
-        uncompressed = zfobj.read(name)
+        # GitHub archives look like: camstool-main/source/aleha_tools/__init__.py
+        path_in_zip = Path(name)
+        parts = path_in_zip.parts
 
-        filename = scriptPath / name
+        # Find where 'aleha_tools' starts in the path
+        try:
+            aleha_idx = parts.index("aleha_tools")
+            rel_parts = parts[aleha_idx + 1 :]
+        except ValueError:
+            continue
+
+        if not rel_parts:
+            # This is the aleha_tools directory itself
+            continue
+
+        filename = toolsFolder.joinpath(*rel_parts)
         d = filename.parent
 
         if not d.exists():
             d.mkdir(parents=True)
-        if str(filename).endswith(os.sep):
+
+        if name.endswith("/") or name.endswith(os.sep):
             continue
 
+        uncompressed = zfobj.read(name)
         with open(filename, "wb") as output:
             output.write(uncompressed)
 
@@ -154,7 +197,8 @@ def add_shelf_button(tool, command):
         return False
 
     if not find():
-        icon_path = Path(os.environ["MAYA_APP_DIR"]) / "scripts" / "aleha_tools" / "_icons" / (tool + ".svg")
+        toolsFolder = Path(__file__).resolve().parent
+        icon_path = toolsFolder / "_icons" / (tool + ".svg")
         cmds.shelfButton(
             parent=currentShelf,
             i=str(icon_path),
@@ -274,7 +318,7 @@ def _check_for_updates(ui, warning=True, force=False):
         return
 
     last_release_notes = changelog.get("versions", {}).get(latest_version, [])
-    formated_changelog = "\n".join(["- " + line for line in last_release_notes])
+    formated_changelog = "<br>".join(["- " + line for line in last_release_notes])
 
     update_available = QFlatConfirmDialog(
         window="Update for " + ui.TITLE,
@@ -305,19 +349,23 @@ def _check_for_updates(ui, warning=True, force=False):
                 return
 
             def _post_update():
+                import aleha_tools
                 import aleha_tools.cams as cams
                 from importlib import reload
 
+                reload(aleha_tools)
                 reload(cams)
                 cams.show()
                 QFlatConfirmDialog.question(
                     None,
                     "%s Update" % ui.TITLE,
-                    "Update finished successfully to version <b>%s</b>."
-                    % latest_version.replace("\n", "").replace("\r", ""),
+                    "You have successfully updated the tool!<br><br>"
+                    + "These were the last changes:<br>"
+                    + formated_changelog,
+                    title="Installed %s" % latest_version.replace("\n", "").replace("\r", ""),
                     buttons=["Ok"],
                     highlight=False,
-                    title="Success",
+                    icon=util.return_icon_path("success.svg"),
                 )
 
             QTimer.singleShot(0, _post_update)
