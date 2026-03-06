@@ -1,5 +1,10 @@
 {
     "versions": {
+        "0.2.67-hotfix": [
+            "SpaceSwitch: UI styling & layout tweaks.",
+            "SpaceSwitch: Fixed dialog timer and popup logic.",
+            "And more..."
+        ],
         "0.2.66": [
             "Added back SpaceSwitch with new layout improvements.",
             "DPI scaling for buttons.",

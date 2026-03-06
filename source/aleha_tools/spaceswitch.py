@@ -47,21 +47,15 @@ except ImportError:
     from PySide6.QtCore import QSettings  # type: ignore
     from shiboken6 import wrapInstance, isValid  # type: ignore
 
-
-try:
-    from base64 import decodebytes
-except ImportError:
-    from base64 import decodestring
-
-    decodebytes = decodestring
-
 from aleha_tools import base_widgets
 from aleha_tools import util
+from aleha_tools import widgets
 
 from importlib import reload
 
 reload(base_widgets)
 reload(util)
+reload(widgets)
 
 CONTEXTUAL_CURSOR = QCursor(QPixmap(":/rmbMenu.png"), hotX=11, hotY=8)
 _MAIN_DICT = sys.modules["__main__"].__dict__
@@ -119,6 +113,7 @@ class FloatingWidget(base_widgets.QFlatDialog):
         super().__init__(parent)
         self.setWindowFlags(self.windowFlags() | Qt.Tool | Qt.FramelessWindowHint)
 
+        self.setMinimumWidth(util.DPI(220))
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_DeleteOnClose, False)
 
@@ -157,14 +152,13 @@ class FloatingWidget(base_widgets.QFlatDialog):
         p.drawRoundedRect(rect, r, r)
 
     def setBottomBar(self, *args, **kwargs):
-        """Overrides base_widgets.QFlatDialog to ensure auto-kill is disabled when a bar is present."""
+        """Overrides QFlatDialog to manage bottom bar while allowing popup timer to persist."""
         super().setBottomBar(*args, **kwargs)
-        self._disable_auto_kill()
 
     def showBottomBar(self):
         """Disables auto-kill and adds a default close button if no bar exists."""
-        if hasattr(self, "set_bottom_btns"):
-            self.set_bottom_btns(close=True)
+        if hasattr(self, "_refresh_footer"):
+            self._refresh_footer()
         elif not self.bottomBar:
             self.setBottomBar(closeButton=True)
         self._disable_auto_kill()
@@ -229,23 +223,17 @@ class FloatingWidget(base_widgets.QFlatDialog):
         self._timer.start()
 
     def _enable_timer(self):
-        if hasattr(self, "_timer"):
-            if self._timer is None:
-                return
+        if hasattr(self, "_timer") and self._timer:
             self._timer.start()
             self._timer_enabled = True
 
     def _pause_timer(self):
-        if hasattr(self, "_timer"):
-            if self._timer is None:
-                return
+        if hasattr(self, "_timer") and self._timer:
             self._timer.stop()
             self._timer_enabled = False
 
     def _disable_auto_kill(self):
-        if hasattr(self, "_timer"):
-            if self._timer is None:
-                return
+        if hasattr(self, "_timer") and self._timer:
             self._timer.stop()
             self._timer = None
         self._timer_enabled = None
@@ -259,6 +247,9 @@ class SetupTargetsDialog(FloatingWidget):
     def __init__(self, parent, objects_dict, on_close):
         super().__init__(popup=False, parent=parent)
         self.on_close = on_close
+
+        if parent and hasattr(parent, "_pause_timer"):
+            parent._pause_timer()
 
         self.objects_dict = objects_dict
         self._create_layouts()
@@ -301,6 +292,10 @@ class SetupTargetsDialog(FloatingWidget):
 
         if callable(self.on_close):
             self.on_close(self.objects_dict.keys())
+
+        parent = self.parent()
+        if parent and hasattr(parent, "_enable_timer"):
+            parent._enable_timer()
 
         super().closeEvent(event)
 
@@ -361,7 +356,7 @@ class TargetsList(QListWidget):
         self.backing_store.append(name)
 
         item = QListWidgetItem()
-        item.setFlags(Qt.NoItemFlags)
+        # item.setFlags(Qt.NoItemFlags)
         widget = TargetItemWidget(name, self)
 
         item.setSizeHint(widget.sizeHint())
@@ -690,30 +685,28 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         self.last_selection = []
 
         self.refresh()
-        self.set_bottom_btns()
 
-    def set_bottom_btns(self, close=None):
-        if close is None:
-            close = not self._timer_enabled
-
-        self.setBottomBar(
-            buttons=[
+    def _refresh_footer(self):
+        """Updates the interaction bar based on whether valid switches exist."""
+        buttons = []
+        if self.comboboxes:
+            buttons.append(
                 base_widgets.DialogButton(
                     "Apply",
-                    callback=self.apply_pending_changes,
+                    callback=self.apply,
                     icon=util.return_icon_path("apply"),
                     highlight=True,
                 )
-            ],
-            closeButton=close,
-        )
+            )
 
-    def apply_pending_changes(self):
+        # Show Close only if not in popup mode (pinned)
+        should_close = not self._timer_enabled
+        self.setBottomBar(buttons=buttons, closeButton=should_close)
+
+    def apply(self):
+        """Commits all currently selected enum values to the scene."""
         for (enum_attr, _), (combobox, options_and_objects) in self.comboboxes.items():
-            enum_value = combobox.currentText()
-            # Clean enum_value if it has gimbal labels
-            if " (" in enum_value:
-                enum_value = enum_value.split(" (")[0]
+            enum_value = combobox.currentText().split(" (")[0]
             self.apply_changes(enum_value, enum_attr, options_and_objects)
 
     def instance_settings(self):
@@ -998,13 +991,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
 
                         for enum, data in self.spaceswitch_enum_dictionary.items():
                             unique_controls = sorted(data["objects"].keys())
-                            if len(unique_controls) == 1:
-                                name = unique_controls[0].split("|")[-1]
-                                if ":" in name and not self.namespace_display:
-                                    name = name.split(":")[-1]
-                                name = ("..." + name[:50]) if len(name) > 50 else name
-                            else:
-                                name = "(%s)" % len(unique_controls)
+                            name = self._format_object_name(unique_controls)
 
                             control_target = QLabel("%s %s" % (name, data["long"].title()))
                             control_target.setCursor(CONTEXTUAL_CURSOR)
@@ -1015,14 +1002,9 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                             )
 
                             combobox = self.set_combobox(data["objects"])
-                            options_and_objects = {}
-                            for obj, opt in data["objects"].items():
-                                for i, o in enumerate(opt["enum"]):
-                                    options_and_objects.setdefault(o, {"objects": [], "index": i})[
-                                        "objects"
-                                    ].append(obj)
+                            options_map = self._build_options_map(data["objects"])
 
-                            self.comboboxes[(enum, tuple(unique_controls))] = (combobox, options_and_objects)
+                            self.comboboxes[(enum, tuple(unique_controls))] = (combobox, options_map)
 
                             row = QHBoxLayout()
                             row.setContentsMargins(0, 0, 0, 0)
@@ -1030,6 +1012,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                             row.addWidget(control_target)
                             row.addWidget(combobox)
                             self.enums_layout.insertLayout(0, row)
+                self._refresh_footer()
 
             except Exception as e:
                 cmds.warning("Error adding buttons: %s" % e)
@@ -1037,6 +1020,26 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                 self.setMinimumHeight(0)
                 self.resize(self.width(), 0)
                 self.adjustSize()
+
+    def _format_object_name(self, objects):
+        """Returns a human-friendly string for one or multiple objects."""
+        if not objects:
+            return ""
+        if len(objects) == 1:
+            name = objects[0].split("|")[-1]
+            if ":" in name and not self.namespace_display:
+                name = name.split(":")[-1]
+            return ("..." + name[:50]) if len(name) > 50 else name
+        return "(%s)" % len(objects)
+
+    def _build_options_map(self, objects_data):
+        """Constructs a mapping of enum options to their respective object target sets."""
+        options_map = {}
+        for obj, opt in objects_data.items():
+            for i, o in enumerate(opt["enum"]):
+                entry = options_map.setdefault(o, {"objects": [], "index": i})
+                entry["objects"].append(obj)
+        return options_map
 
     def _show_change_target_dialog(self, sender, data):
         selection = self.getSelectedObj(long=False)
@@ -1306,27 +1309,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                 om.MGlobal.displayWarning("All up-to-date.")
 
     def coffee(self):
-        credits_dialog = QMessageBox()
-        # credits_dialog.setWindowFlags(self.windowFlags() & Qt.FramelessWindowHint)
-
-        base64Data = "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"
-        image_64_decode = decodebytes(base64Data.encode("utf-8"))
-        image = QImage()
-        image.loadFromData(image_64_decode, "JPG")
-        pixmap = QPixmap(image).scaledToHeight(56, Qt.SmoothTransformation)
-        credits_dialog.setIconPixmap(pixmap)
-        credits_dialog.setWindowTitle("About")
-        credits_dialog.setText(
-            "Created by @" + APPCONFIG.get("org_name") + "<br>"
-            'Website - <a href=https://alehaaaa.github.io><font color="white">alehaaaa.github.io</a><br>'
-            '<a href=https://www.linkedin.com/in/alejandro-martin-407527215><font color="white">Linkedin</a> - <a href=https://www.instagram.com/alejandro_anim><font color="white">Instagram</a>'
-            "<br><br>"
-            "If you liked this tool,<br>"
-            "you can send me some love!"
-        )
-        credits_dialog.setFixedSize(400, 300)
-        exec_fn = getattr(credits_dialog, "exec", None) or getattr(credits_dialog, "exec_", None)
-        exec_fn()
+        widgets.Coffee.showUI(self)
 
     def closeEvent(self, e):
         self._cb.clear()

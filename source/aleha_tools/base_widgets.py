@@ -206,7 +206,7 @@ class FlatButton(QPushButton):
     HIGHLIGHT_PRESSED_BACKGROUND = "#707070"
 
     DEFAULT_FONT_SIZE = DPI(12)
-    HIGHLIGHT_FONT_SIZE = DPI(16)
+    HIGHLIGHT_FONT_SIZE = DPI(15)
 
     def __init__(
         self,
@@ -222,21 +222,22 @@ class FlatButton(QPushButton):
         self.setFlat(True)
         self.setCursor(Qt.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setMinimumHeight(DPI(34))
+        self.setFixedHeight(DPI(34))
 
+        # Consistent Icon Size
+        self.setIconSize(QSize(DPI(19), DPI(19)))
         if icon_path:
-            self.setIconSize(QSize(DPI(18), DPI(18)))
             HoverableIcon.apply(self, icon_path, highlight=highlight)
 
+        v_padding = 2  # Tight padding since height is fixed
+
         if highlight:
-            self.setIconSize(QSize(DPI(22), DPI(22)))
             color = self.HIGHLIGHT_COLOR
             background = self.HIGHLIGHT_BACKGROUND
             hover_background = self.HIGHLIGHT_HOVER_BACKGROUND
             pressed_background = self.HIGHLIGHT_PRESSED_BACKGROUND
             font_size = self.HIGHLIGHT_FONT_SIZE
             weight = "bold"
-            v_padding = 8
         elif background != self.DEFAULT_BACKGROUND:
             try:
                 base_background = int(background.lstrip("#"), 16)
@@ -251,20 +252,18 @@ class FlatButton(QPushButton):
             pressed_background = "#%02x%02x%02x" % (max(r - 10, 0), max(g - 10, 0), max(b - 10, 0))
             font_size = self.DEFAULT_FONT_SIZE
             weight = "normal"
-            v_padding = 6
         else:
             hover_background = self.DEFAULT_HOVER_BACKGROUND
             pressed_background = self.DEFAULT_PRESSED_BACKGROUND
             font_size = self.DEFAULT_FONT_SIZE
             weight = "normal"
-            v_padding = 6
 
         self.setStyleSheet(
             self.STYLE_SHEET
             % (
                 color,
                 background,
-                border * 1.4,
+                border,
                 DPI(v_padding),
                 DPI(12),
                 weight,
@@ -293,7 +292,7 @@ class BottomBar(QFrame):
 
 
 class QFlatDialog(QDialog):
-    BORDER_RADIUS = 5
+    BORDER_RADIUS = DPI(7)
 
     # Button Preconfigurations
     Yes = DialogButton("Yes", positive=True, icon=return_icon_path("apply"))
