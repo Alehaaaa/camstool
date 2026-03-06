@@ -120,7 +120,6 @@ from .funcs import (
     get_preferences_display,
     display_menu_elements,
     rename_cam,
-    check_for_updates,
 )
 from .base_widgets import (
     QFlatDialog,
@@ -1600,26 +1599,35 @@ Coffee window
 
 
 class Coffee(QFlatDialog):
-    _object_name = "%s_coffee_dlg" % DATA["TOOL"].lower()
     _instance = None
+    _check_updates = Signal()
 
     @classmethod
-    def showUI(cls, parent):
-        if cmds.window(cls._object_name, exists=True):
-            cmds.deleteUI(cls._object_name)
+    def showUI(cls, parent, data=None):
+        tool_data = data
+        name = "%s_coffee_dlg" % tool_data["TOOL"].lower()
 
-        cls._instance = Coffee(parent)
+        if cmds.window(name, exists=True):
+            cmds.deleteUI(name)
+
+        cls._instance = Coffee(parent, data=data)
         cls._instance.show()
         cls._instance.raise_()
         cls._instance.activateWindow()
 
-    def __init__(self, parent=None):
+        return cls._instance
+
+    def __init__(self, parent=None, data=None):
         super().__init__(parent)
 
         self._parentUI = parent
+        self._data = data
 
-        self.setObjectName(self._object_name)
-        self.setWindowTitle("About " + DATA["TOOL"].title())
+        self._author = self._data.get("AUTHOR")
+
+        name = "%s_coffee_dlg" % self._data["TOOL"].lower()
+        self.setObjectName(name)
+        self.setWindowTitle("About " + self._data["TOOL"])
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
@@ -1635,13 +1643,13 @@ class Coffee(QFlatDialog):
         content_layout.addWidget(logo_label)
 
         # Tool Name
-        tool_name = QLabel("%s Tool" % DATA["TOOL"].title())
+        tool_name = QLabel("%s Tool" % self._data["TOOL"])
         tool_name.setAlignment(Qt.AlignCenter)
         tool_name.setStyleSheet("font-size: %spx; font-weight: bold; color: #ececec;" % DPI(20))
         content_layout.addWidget(tool_name)
 
         # Version Badge (Clickable)
-        version_btn = QPushButton("v%s" % DATA["VERSION"])
+        version_btn = QPushButton("v%s" % self._data["VERSION"])
         version_btn.setCursor(Qt.PointingHandCursor)
         version_btn.setStyleSheet(
             """
@@ -1661,11 +1669,10 @@ class Coffee(QFlatDialog):
         """
             % (DPI(4), DPI(4), DPI(8), DPI(11))
         )
-        version_btn.clicked.connect(lambda: self._check_for_updates())
+        version_btn.clicked.connect(self._check_updates.emit)
         content_layout.addWidget(version_btn, alignment=Qt.AlignCenter)
 
         # Info Section
-        author = DATA["AUTHOR"]
         info_text = """
             <div style='text-align: center; color: #888888; font-size: %spx;'>
                 <p>© 2023 by <a href='%s' style='color: #cccccc; text-decoration: none;'>%s</a>. All rights reserved.</p>
@@ -1679,10 +1686,10 @@ class Coffee(QFlatDialog):
             </div>
         """ % (
             DPI(11),
-            author["website"],
-            author["name"],
-            author["instagram"],
-            author["website"],
+            self._author["website"],
+            self._author["name"],
+            self._author["instagram"],
+            self._author["website"],
         )
         # Combine info text and style into one HTML document
         full_info_html = (
@@ -1716,7 +1723,3 @@ class Coffee(QFlatDialog):
         self.setBottomBar(closeButton=True)
         self.resize(DPI(300), DPI(150))
         self.adjustSize()
-
-    def _check_for_updates(self):
-        cmds.showWindow("MayaWindow")
-        return check_for_updates(self._parentUI)

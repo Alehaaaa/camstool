@@ -1,5 +1,9 @@
 {
     "versions": {
+        "0.2.68": [
+            "SpaceSwitch: Updated to modern UI.",
+            "About Dialog update checks improved."
+        ],
         "0.2.67-hotfix": [
             "SpaceSwitch: UI styling & layout tweaks.",
             "SpaceSwitch: Fixed dialog timer and popup logic.",

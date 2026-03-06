@@ -43,6 +43,7 @@ long = int
 
 
 def check_for_updates(ui, warning=True, force=False):
+    cmds.showWindow("MayaWindow")
     from . import updater
 
     importlib.reload(updater)
@@ -120,7 +121,9 @@ def unistall(ui):
                 elif os.path.isdir(f):
                     shutil.rmtree(f)
 
-        buttons = cmds.shelfLayout(cmds.tabLayout(mel.eval("$nul=$gShelfTopLevel"), q=1, st=1), q=True, ca=True)
+        buttons = cmds.shelfLayout(
+            cmds.tabLayout(mel.eval("$nul=$gShelfTopLevel"), q=1, st=1), q=True, ca=True
+        )
         if buttons:
             for b in buttons:
                 if cmds.shelfButton(b, exists=True) and cmds.shelfButton(b, q=True, l=True) == ui.TOOL:
@@ -222,7 +225,11 @@ def get_cam_display(cam_panels, command, plugin=False):
 def set_cam_display(cam_panels, command, plugin=False, switch=None):
     var = get_cam_display(cam_panels, command, plugin) if switch is None else not switch
     for i in cam_panels:
-        e_cmd = "pluginObjects=('{}', {})".format(command, not var) if plugin else "{}={}".format(command, not var)
+        e_cmd = (
+            "pluginObjects=('{}', {})".format(command, not var)
+            if plugin
+            else "{}={}".format(command, not var)
+        )
         try:
             eval("cmds.modelEditor('{}', e=1, {})".format(i, e_cmd))
         except Exception:
@@ -272,7 +279,11 @@ def get_panels_from_camera(cam):
         cam_shape = cam
 
     return list(
-        {p for p in cmds.getPanel(type="modelPanel") if cmds.modelPanel(p, q=True, camera=True) in {cam, cam_shape}}
+        {
+            p
+            for p in cmds.getPanel(type="modelPanel")
+            if cmds.modelPanel(p, q=True, camera=True) in {cam, cam_shape}
+        }
     )
 
 
@@ -530,7 +541,9 @@ def close_UI(ui, confirm=True):
                 "Closing Cams will NOT reopen the UI on Maya's next launch.\nYou will have to use a Shelf button or run Cams launch script.",
                 buttons=[
                     QFlatConfirmDialog.Yes,
-                    QFlatConfirmDialog.CustomButton("Add to Shelf", positive=True, icon=return_icon_path("add")),
+                    QFlatConfirmDialog.CustomButton(
+                        "Add to Shelf", positive=True, icon=return_icon_path("add")
+                    ),
                     QFlatConfirmDialog.Cancel,
                 ],
                 highlight="Add to Shelf",

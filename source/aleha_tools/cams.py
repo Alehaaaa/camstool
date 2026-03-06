@@ -80,7 +80,9 @@ except ImportError:
 from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 
 # Remove outdated 'aleha_tools' modules except 'aleha_tools.cams'
-modules_to_delete = [m for m in list(sys.modules.keys()) if m.startswith("aleha_tools") and m != "aleha_tools.cams"]
+modules_to_delete = [
+    m for m in list(sys.modules.keys()) if m.startswith("aleha_tools") and m != "aleha_tools.cams"
+]
 
 for mod_name in modules_to_delete:
     del sys.modules[mod_name]
@@ -418,9 +420,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
             # Get existing buttons from layout
             existing_buttons = {
-                self.cams_scroll.container_layout.itemAt(i).widget().camera: self.cams_scroll.container_layout.itemAt(
-                    i
-                ).widget()
+                self.cams_scroll.container_layout.itemAt(i)
+                .widget()
+                .camera: self.cams_scroll.container_layout.itemAt(i).widget()
                 for i in range(self.cams_scroll.container_layout.count())
                 if isinstance(
                     self.cams_scroll.container_layout.itemAt(i).widget(),
@@ -488,7 +490,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         menu_general.addSeparator()
 
         self.about = menu_general.addAction(QIcon(util.return_icon_path("info")), "About")
-        self.updates = menu_general.addAction(QIcon(util.return_icon_path("check_updates")), "Check for Updates")
+        self.updates = menu_general.addAction(
+            QIcon(util.return_icon_path("check_updates")), "Check for Updates"
+        )
 
         menu_general.addSeparator()
 
@@ -522,7 +526,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         self.HUD_checkbox = menu_tools.addAction("Display HUDs")
         self.HUD_checkbox.setCheckable(True)
         self.HUD_checkbox.setChecked(self.HUD_display_cam())
-        self.HUD_checkbox.triggered.connect(lambda state=self.HUD_display_cam(): self.HUD_display_cam(state=state))
+        self.HUD_checkbox.triggered.connect(
+            lambda state=self.HUD_display_cam(): self.HUD_display_cam(state=state)
+        )
 
         self.version_bar = menu_bar.addMenu(self.VERSION)
         is_author = funcs.check_author()
@@ -602,7 +608,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         self.startup_Viewport_checkbox.setCheckable(True)
         self.startup_Viewport_checkbox.setChecked(self.startup_viewport)
         self.startup_Viewport_checkbox.triggered.connect(
-            lambda state=self.startup_Viewport_checkbox.isChecked(): self.process_prefs(startup_viewport=state)
+            lambda state=self.startup_Viewport_checkbox.isChecked(): self.process_prefs(
+                startup_viewport=state
+            )
         )
 
         self.startup_HUD_checkbox = system_menu.addAction("HUD on Startup")
@@ -614,7 +622,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
         system_menu.addSeparator()
 
-        self.reset_cams_data = system_menu.addAction(QIcon(util.return_icon_path("warning.svg")), "Reset Settings")
+        self.reset_cams_data = system_menu.addAction(
+            QIcon(util.return_icon_path("warning.svg")), "Reset Settings"
+        )
         system_menu.addSeparator()
         self.close_btn = system_menu.addAction(QIcon(util.return_icon_path("close_menu")), "Close")
         self.uninstall_btn = system_menu.addAction(QIcon(util.return_icon_path("remove")), "Uninstall")
@@ -714,11 +724,15 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         )
         self.version_bar.addSeparator()
 
-        self.open_release_notes = self.version_bar.addAction(QIcon(util.return_icon_path("load")), "Open Release Notes")
+        self.open_release_notes = self.version_bar.addAction(
+            QIcon(util.return_icon_path("load")), "Open Release Notes"
+        )
 
         self.version_bar.addSeparator()
 
-        force_update = self.version_bar.addAction(QIcon(util.return_icon_path("check_updates")), "Force Install Update")
+        force_update = self.version_bar.addAction(
+            QIcon(util.return_icon_path("check_updates")), "Force Install Update"
+        )
         force_update.triggered.connect(partial(funcs.check_for_updates, self, force=True))
 
         self.compile_update.triggered.connect(funcs.compile_version)
@@ -735,7 +749,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         elif sys.platform == "darwin":
             import subprocess
 
-            self.open_github_desktop.triggered.connect(lambda: subprocess.call(["open", "-a", "GitHub Desktop"]))
+            self.open_github_desktop.triggered.connect(
+                lambda: subprocess.call(["open", "-a", "GitHub Desktop"])
+            )
 
         self.open_release_notes.triggered.connect(self.open_release_notes_function)
 
@@ -855,7 +871,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         if not util.is_valid_widget(self.menu_presets):
             return
 
-        self.hud_settings = settings.get_pref("hudSettings") or settings.initial_settings().get("defaultSettings", None)
+        self.hud_settings = settings.get_pref("hudSettings") or settings.initial_settings().get(
+            "defaultSettings", None
+        )
 
         self.menu_presets.clear()
 
@@ -918,7 +936,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         self.cams_prefs = self.user_prefs.get("defaultCameraSettings", None) or _initial_settings.get(
             "defaultCameraSettings", None
         )
-        self.startup_prefs = self.user_prefs.get("startupSettings", {}) or _initial_settings.get("startupSettings", {})
+        self.startup_prefs = self.user_prefs.get("startupSettings", {}) or _initial_settings.get(
+            "startupSettings", {}
+        )
 
         # Set the value of the attribute to a dictionary of multiple variable values
         if cam:
@@ -955,7 +975,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         if skip_update is not None:
             self.startup_prefs["skip_update"] = skip_update
 
-        self.default_cam = self.cams_prefs.get("camera", None) or _initial_settings["defaultCameraSettings"]["camera"]
+        self.default_cam = (
+            self.cams_prefs.get("camera", None) or _initial_settings["defaultCameraSettings"]["camera"]
+        )
 
         self.default_overscan = (
             self.cams_prefs.get("overscan", None) or _initial_settings["defaultCameraSettings"]["overscan"]
@@ -975,11 +997,13 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         )
 
         self.default_gate_mask_opacity = (
-            self.cams_prefs.get("mask_opacity", None) or _initial_settings["defaultCameraSettings"]["mask_opacity"]
+            self.cams_prefs.get("mask_opacity", None)
+            or _initial_settings["defaultCameraSettings"]["mask_opacity"]
         )
 
         self.default_gate_mask_color = (
-            self.cams_prefs.get("mask_color", None) or _initial_settings["defaultCameraSettings"]["mask_color"]
+            self.cams_prefs.get("mask_color", None)
+            or _initial_settings["defaultCameraSettings"]["mask_color"]
         )
 
         self.position = (
@@ -1099,7 +1123,8 @@ class UI(MayaQWidgetDockableMixin, QDialog):
     """
 
     def coffee(self):
-        widgets.Coffee.showUI(self)
+        _coffee = widgets.Coffee.showUI(self, data=DATA)
+        _coffee._check_updates.connect(lambda: funcs.check_for_updates(self))
 
     def resizeEvent(self, event):
         def get_qt():
@@ -1190,7 +1215,9 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         for cam in util.get_cameras():
             self.all_created_scriptjobs.append(cmds.scriptJob(nodeDeleted=[cam, self.reload_cams_UI]))
 
-        self.all_created_scriptjobs.append(cmds.scriptJob(event=["SelectionChanged", self.selection_changed_scripjob]))
+        self.all_created_scriptjobs.append(
+            cmds.scriptJob(event=["SelectionChanged", self.selection_changed_scripjob])
+        )
 
         # self.all_created_scriptjobs.append(cmds.scriptJob(event=["DagObjectCreated", self.camera_creation_scripjob]))
 
