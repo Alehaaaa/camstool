@@ -267,8 +267,8 @@ class FloatingWidget(base_widgets.QFlatDialog):
     Can be instantiated as a temporary popup or a pinned window.
     """
 
-    BORDER_RADIUS = 5
-    AUTO_CLOSE_DIST = 10
+    BORDER_RADIUS = util.DPI(5)
+    AUTO_CLOSE_DIST = util.DPI(10)
     AUTO_CLOSE_PERIOD_MS = 300
     TEXT_COLOR = "#bbbbbb"
 
@@ -331,12 +331,7 @@ class FloatingWidget(base_widgets.QFlatDialog):
         if self.frameGeometry().contains(cursor_pos):
             return True
 
-        if (
-            hasattr(self, "_active_popup")
-            and self._active_popup
-            and isValid(self._active_popup)
-            and self._active_popup.isVisible()
-        ):
+        if hasattr(self, "_active_popup") and self._active_popup and isValid(self._active_popup) and self._active_popup.isVisible():
             if self._active_popup.frameGeometry().contains(cursor_pos):
                 return True
         return False
@@ -361,7 +356,7 @@ class FloatingWidget(base_widgets.QFlatDialog):
         p.setBrush(QColor("#333333"))
 
         # Use drawRoundedRect for clean, all-around rounded corners
-        rect = self.rect().adjusted(0, 0, 1, -2)
+        rect = self.rect()
         r = self.BORDER_RADIUS
         p.drawRoundedRect(rect, r, r)
 
@@ -795,9 +790,7 @@ class AttributeItem(QWidget):
 
             if options_map:
                 enum_value = self.options[idx]
-                self.parent_dialog._apply_attribute_switch(
-                    enum_value, self.enum_attr, options_map, all_frames_override=all_frames
-                )
+                self.parent_dialog._apply_attribute_switch(enum_value, self.enum_attr, options_map, all_frames_override=all_frames)
 
     def currentText(self):
         return self.options[self.current_idx] if self.options else ""
@@ -819,11 +812,7 @@ class SetupTargetsDialog(FloatingWidget):
         self.objects_dict = objects_dict
         self._create_layouts()
         self.setBottomBar(
-            [
-                base_widgets.DialogButton(
-                    "Add", callback=self._add_target, icon=util.return_icon_path("add"), highlight=True
-                )
-            ],
+            [base_widgets.DialogButton("Add", callback=self._add_target, icon=util.return_icon_path("add"), highlight=True)],
             closeButton=True,
         )
 
@@ -880,7 +869,7 @@ class TargetItemWidget(QWidget):
         base_widgets.HoverableIcon.apply(close_btn, util.return_icon_path("close"))
 
         close_btn.setIconSize(QSize(15, 15))
-        close_btn.setFixedSize(10, 10)
+        close_btn.setFixedSize(15, 15)
         close_btn.setFocusPolicy(Qt.NoFocus)
         close_btn.clicked.connect(self._remove)
         close_btn.setStyleSheet("""
@@ -1080,9 +1069,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         selection_layout.setContentsMargins(0, 0, 0, util.DPI(8))
 
         selection_title = QLabel("Selection")
-        selection_title.setStyleSheet(
-            "font-size: %spx; color: %s; font-weight: bold; background: transparent;" % (util.DPI(20), self.TEXT_COLOR)
-        )
+        selection_title.setStyleSheet("font-size: %spx; color: %s; font-weight: bold; background: transparent;" % (util.DPI(20), self.TEXT_COLOR))
         selection_title.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
         selection_title.setWordWrap(False)
         selection_title.setFixedHeight(selection_title.fontMetrics().height() + 2)
@@ -1327,20 +1314,13 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         item = self._popup_pending_item
 
         # If current is same item and visible, do nothing
-        if (
-            self._active_popup
-            and isValid(self._active_popup)
-            and self._active_popup.item_widget == item
-            and self._active_popup.isVisible()
-        ):
+        if self._active_popup and isValid(self._active_popup) and self._active_popup.item_widget == item and self._active_popup.isVisible():
             return
 
         # Otherwise, switch
         self._close_active_popup()
 
-        self._active_popup = AttributePopup(
-            item, item.options, item.current_idx, item.current_indices, item.marked_indices, item.on_select
-        )
+        self._active_popup = AttributePopup(item, item.options, item.current_idx, item.current_indices, item.marked_indices, item.on_select)
         self._active_popup.show_beside(item)
         item._hover_active = True
         item.update()
@@ -1370,9 +1350,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
     @staticmethod
     def formatXformTooltipObjects(objects):
         """Formats the HTML tooltip for target objects."""
-        return "<html>Current xform target/s:<br>%s<br><br><b>Right-click to modify...</b></html>" % "<br>".join(
-            objects
-        )
+        return "<html>Current xform target/s:<br>%s<br><br><b>Right-click to modify...</b></html>" % "<br>".join(objects)
 
     # =================================================================================
     #  5. REFRESH & UPDATE LOGIC
@@ -1436,9 +1414,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
 
         attr_item.setToolTip(self.formatXformTooltipObjects(target_nodes))
         attr_item.setContextMenuPolicy(Qt.CustomContextMenu)
-        attr_item.customContextMenuRequested.connect(
-            lambda pos, s=attr_item, d=data: self._show_change_target_dialog(s, d)
-        )
+        attr_item.customContextMenuRequested.connect(lambda pos, s=attr_item, d=data: self._show_change_target_dialog(s, d))
 
         options_map = self._build_options_map(data["objects"])
         self._active_switch_widgets[(enum_name, tuple(target_nodes))] = (attr_item, options_map)
@@ -1529,9 +1505,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         # Gather all keyframes across targets
         all_keys = set(sum([cmds.keyframe(t, query=True) or [] for t in targets], []))
 
-        keyframes = {
-            frame: [t for t in targets if frame in (cmds.keyframe(t, query=True) or [])] for frame in sorted(all_keys)
-        }
+        keyframes = {frame: [t for t in targets if frame in (cmds.keyframe(t, query=True) or [])] for frame in sorted(all_keys)}
 
         # Restrict to timeline selection range if active
         if timeline_selection:
@@ -1649,12 +1623,8 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         self.about_action.setIcon(QIcon(util.return_icon_path("info")))
         self.about_action.triggered.connect(self.show_credits_dialog)
 
-        self.show_rotate_order_action.toggled.connect(
-            lambda state: self.set_setting("show_rotate_order", state, refresh=True)
-        )
-        self.toggle_namespaces_action.toggled.connect(
-            lambda state: self.set_setting("namespace_display", state, refresh=True)
-        )
+        self.show_rotate_order_action.toggled.connect(lambda state: self.set_setting("show_rotate_order", state, refresh=True))
+        self.toggle_namespaces_action.toggled.connect(lambda state: self.set_setting("namespace_display", state, refresh=True))
         self.euler_filter_action.toggled.connect(lambda state: self.set_setting("euler_filter", state))
 
         exec_fn = getattr(self.context_menu, "exec", None) or getattr(self.context_menu, "exec_", None)

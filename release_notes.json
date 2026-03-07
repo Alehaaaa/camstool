@@ -1,5 +1,11 @@
 {
     "versions": {
+        "0.2.71": [
+            "Updated button styles.",
+            "Popup DPI scaling.",
+            "Close button size up.",
+            "And more..."
+        ],
         "0.2.70": [
             "UI improvements.",
             "SpaceSwitch: Refactored code and cleaned up.",

@@ -1,5 +1,3 @@
-import asyncio.format_helpers
-
 try:
     from PySide6.QtWidgets import (  # type: ignore
         QWidget,
@@ -178,19 +176,18 @@ class FlatButton(QPushButton):
     """A customizable, flat-styled button for the bottom bar."""
 
     STYLE_SHEET = """
-        FlatButton {
+        QPushButton {
             color: %s;
             background-color: %s;
-            border: none;
             border-radius: %spx;
             padding: %spx %spx;
             font-weight: %s;
             font-size: %spx;
         }
-        FlatButton:hover {
+        QPushButton:hover {
             background-color: %s;
         }
-        FlatButton:pressed {
+        QPushButton:pressed {
             background-color: %s;
         }
     """
@@ -208,13 +205,15 @@ class FlatButton(QPushButton):
     DEFAULT_FONT_SIZE = DPI(12)
     HIGHLIGHT_FONT_SIZE = DPI(15)
 
+    BUTTON_BORDER_RADIUS = DPI(9)
+
     def __init__(
         self,
         text,
         color=DEFAULT_COLOR,
         background=DEFAULT_BACKGROUND,
         icon_path=None,
-        border=8,
+        border=BUTTON_BORDER_RADIUS,
         highlight=False,
         parent=None,
     ):
@@ -258,16 +257,18 @@ class FlatButton(QPushButton):
             font_size = self.DEFAULT_FONT_SIZE
             weight = "normal"
 
+        actual_border = min(int(border), int(DPI(34)) // 2)
+
         self.setStyleSheet(
             self.STYLE_SHEET
             % (
                 color,
                 background,
-                border,
-                DPI(v_padding),
-                DPI(12),
+                actual_border,
+                int(DPI(v_padding)),
+                int(DPI(12)),
                 weight,
-                font_size,
+                int(font_size),
                 hover_background,
                 pressed_background,
             )
@@ -292,8 +293,6 @@ class BottomBar(QFrame):
 
 
 class QFlatDialog(QDialog):
-    BORDER_RADIUS = DPI(7)
-
     # Button Preconfigurations
     Yes = DialogButton("Yes", positive=True, icon=return_icon_path("apply"))
     Ok = DialogButton("Ok", positive=True, icon=return_icon_path("apply"))
@@ -347,7 +346,6 @@ class QFlatDialog(QDialog):
                 background=config.get("background", "#5D5D5D"),
                 icon_path=config.get("icon"),
                 highlight=is_highlighted,
-                border=self.BORDER_RADIUS,
             )
 
             # Connect callback if provided
@@ -458,9 +456,7 @@ class QFlatConfirmDialog(QFlatDialog):
             self.title_label = QLabel(title)
             self.title_label.setWordWrap(True)
             self.title_label.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)
-            self.title_label.setStyleSheet(
-                "font-size: %spx; color: %s; font-weight: bold;" % (DPI(18), self.TEXT_COLOR)
-            )
+            self.title_label.setStyleSheet("font-size: %spx; color: %s; font-weight: bold;" % (DPI(18), self.TEXT_COLOR))
             text_layout.addWidget(self.title_label)
 
         self.message_label = QLabel(message)
