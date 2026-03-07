@@ -470,7 +470,7 @@ class QFlatConfirmDialog(QFlatDialog):
 
         self.root_layout.addWidget(content_widget)
 
-        self.setBottomBar(buttons, margins=0, spacing=2, closeButton=closeButton, highlight=highlight)
+        self.setBottomBar(buttons, closeButton=closeButton, highlight=highlight)
         self.adjustSize()
 
     def _buttonConfigHook(self, index, config):
