@@ -275,8 +275,6 @@ class FloatingWidget(base_widgets.QFlatDialog):
     def __init__(self, popup=False, parent=None):
         super().__init__(parent)
         self.setWindowFlags(self.windowFlags() | Qt.Tool | Qt.FramelessWindowHint)
-
-        self.setMinimumWidth(util.DPI(220))
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_DeleteOnClose, False)
 
@@ -666,7 +664,7 @@ class AttributeItem(QWidget):
     """
 
     def __init__(self, label_text, enum_attr, unique_controls, objects_map, parent_dialog):
-        super().__init__()
+        super().__init__(parent_dialog.mainContent)
         self.label_text = label_text
         self.enum_attr = enum_attr
         self.unique_controls = unique_controls
@@ -692,23 +690,23 @@ class AttributeItem(QWidget):
         self.main_layout.setContentsMargins(util.DPI(6), util.DPI(6), util.DPI(6), util.DPI(6))
         self.main_layout.setSpacing(util.DPI(6))
 
-        self.name_label = QLabel(self.label_text)
+        self.name_label = QLabel(self.label_text, self)
         self.name_label.setStyleSheet(f"color: #2a2a2a; font-size: {util.DPI(11)}px;")
         self.name_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
-        self.pill_container = QWidget()
+        self.pill_container = QWidget(self)
         self.pill_container.setFixedSize(util.DPI(60), util.DPI(16))
         self.pill_layout = QHBoxLayout(self.pill_container)
         self.pill_layout.setContentsMargins(util.DPI(2), 0, util.DPI(2), 0)
         self.pill_layout.setSpacing(util.DPI(2))
 
         # Indicator 'Ball' style
-        self.sq_btn = QPushButton()
+        self.sq_btn = QPushButton(self.pill_container)
         self.sq_btn.setFixedSize(util.DPI(12), util.DPI(12))
         self.sq_btn.setFocusPolicy(Qt.NoFocus)
         self.sq_btn.setAttribute(Qt.WA_TransparentForMouseEvents)
 
-        self.val_label = QLabel(self.options[self.current_idx] if self.options else "")
+        self.val_label = QLabel(self.options[self.current_idx] if self.options else "", self.pill_container)
         self.val_label.setStyleSheet(f"color: #e59ed0; font-size: {util.DPI(11)}px;")
         self.val_label.setAlignment(Qt.AlignCenter)
 
@@ -1053,14 +1051,15 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
 
     def _create_layouts(self):
         """Builds the main container layouts."""
+        self.mainContent.setMinimumWidth(util.DPI(220))
         self.mainContent.setContextMenuPolicy(Qt.CustomContextMenu)
         self.mainContent.customContextMenuRequested.connect(self._show_context_menu)
 
         self.enums_layout = QVBoxLayout()
         self.enums_layout.setSpacing(util.DPI(1))
 
-        self.mainLayout.addStretch()
         self.mainLayout.addLayout(self.enums_layout)
+        self.mainLayout.addStretch(1)
 
     def _create_selection_layout(self):
         """Builds the header area showing tool title and current status."""
@@ -1380,7 +1379,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
 
         if not self._previous_selection:
             self.selection_label.setVisible(True)
-            self._finalize_ui_geometry()
+            self.adjustSize()
             self._refresh_footer()
             return
 
@@ -1397,7 +1396,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
             cmds.warning(f"Error rebuilding SpaceSwitch widgets: {e}")
         finally:
             self._refresh_footer()
-            self._finalize_ui_geometry()
+            self.adjustSize()
 
     def _create_switch_item(self, enum_name, data):
         """Instantiates and registers a single AttributeItem based on provided metadata."""
@@ -1419,12 +1418,6 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         options_map = self._build_options_map(data["objects"])
         self._active_switch_widgets[(enum_name, tuple(target_nodes))] = (attr_item, options_map)
         self.enums_layout.insertWidget(0, attr_item)
-
-    def _finalize_ui_geometry(self):
-        """Resets and shrinks the window to perfectly wrap its new contents."""
-        self.setMinimumHeight(0)
-        self.resize(self.width(), 0)
-        self.adjustSize()
 
     def _build_options_map(self, objects_data):
         """Constructs a mapping of enum options to their respective object target sets."""

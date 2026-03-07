@@ -1,5 +1,9 @@
 {
     "versions": {
+        "0.2.721-hotfix": [
+            "SpaceSwitch: Simplified UI sizing.",
+            "Adjusted layout stretch."
+        ],
         "0.2.72": [
             "Cams: Add SpaceSwitch tool to Tools menu.",
             "UI layout refactor."

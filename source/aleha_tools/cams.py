@@ -8,7 +8,6 @@ cams.show()
 
 """
 
-import xml.dom.NodeFilter
 import os
 import sys
 import maya.OpenMayaUI as omui
