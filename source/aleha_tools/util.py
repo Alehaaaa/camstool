@@ -38,6 +38,7 @@ def make_inViewMessage(message, icon="camera"):
         pos="midCenter",
         a=0.9,
         fade=True,
+        fst=300,
     )
 
 
@@ -99,9 +100,7 @@ def is_valid_widget(widget, expected_type=None):
 def check_visible_layout(layout):
     try:
         try:
-            s = cmds.workspaceControl(layout, q=True, visible=True) and not cmds.workspaceControl(
-                layout, q=True, collapse=True
-            )
+            s = cmds.workspaceControl(layout, q=True, visible=True) and not cmds.workspaceControl(layout, q=True, collapse=True)
         except Exception:
             s = cmds.window(layout, q=True, visible=True)
     except Exception:
@@ -138,3 +137,15 @@ def compare_versions(v1, v2):
         return (p1 > p2) - (p1 < p2)
 
     return (len(t1) > len(t2)) - (len(t1) < len(t2))
+
+
+def find_shelf_button(tool):
+    import maya.mel as mel
+
+    currentShelf = cmds.tabLayout(mel.eval("$nul=$gShelfTopLevel"), q=1, st=1)
+    buttons = cmds.shelfLayout(currentShelf, q=True, ca=True)
+    if buttons:
+        for b in buttons:
+            if cmds.shelfButton(b, exists=True) and cmds.shelfButton(b, q=True, l=True) == tool:
+                return True
+    return False

@@ -50,6 +50,8 @@ from .util import (
     get_maya_qt,
 )
 
+import sys
+
 
 class DialogButton(dict):
     """A dictionary subclass that supports the | operator to return a list of buttons."""
@@ -308,7 +310,8 @@ class QFlatDialog(QDialog):
             parent = get_maya_qt()
 
         super().__init__(parent)
-        self.setWindowFlags(self.windowFlags() | Qt.Tool)
+        if sys.platform != "win32":
+            self.setWindowFlags(self.windowFlags() | Qt.Tool)
 
         self.root_layout = QVBoxLayout(self)
         self.root_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
@@ -493,6 +496,34 @@ class QFlatConfirmDialog(QFlatDialog):
             self.accept()
         else:
             self.reject()
+
+    @classmethod
+    def information(
+        cls,
+        parent,
+        window,
+        message,
+        buttons=None,
+        highlight=None,
+        closeButton=True,
+        title=None,
+        **kwargs,
+    ):
+        """Static-like helper to create and show a confirm dialog."""
+        if buttons is None and not closeButton:
+            buttons = [cls.Close]
+        dlg = cls(
+            window=window,
+            title=title,
+            message=message,
+            buttons=buttons,
+            highlight=highlight,
+            closeButton=closeButton,
+            parent=parent,
+            **kwargs,
+        )
+        dlg.exec_()
+        return dlg.clicked_button
 
     @classmethod
     def question(

@@ -8,6 +8,7 @@ cams.show()
 
 """
 
+import xml.dom.NodeFilter
 import os
 import sys
 import maya.OpenMayaUI as omui
@@ -26,7 +27,6 @@ try:
         QDialog,
         QApplication,
         QHBoxLayout,
-        QVBoxLayout,
         QPushButton,
         QFrame,
         QMenu,
@@ -57,7 +57,6 @@ except ImportError:
         QDialog,
         QApplication,
         QHBoxLayout,
-        QVBoxLayout,
         QPushButton,
         QFrame,
         QMenu,
@@ -341,21 +340,11 @@ class UI(MayaQWidgetDockableMixin, QDialog):
     """
 
     def create_layouts(self):
-        container_layout = QVBoxLayout(self)
-        container_layout.setContentsMargins(util.DPI(3), util.DPI(3), util.DPI(3), util.DPI(3))
-
-        main_widget = QWidget(self)
-        self.main_widget_layout = QVBoxLayout(main_widget)
-        self.main_widget_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.main_layout = QHBoxLayout()
+        self.main_layout = QHBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_widget_layout.addLayout(self.main_layout)
-
-        container_layout.addWidget(main_widget)
 
         self.default_cam_layout = QHBoxLayout()
-        self.default_cam_layout.setContentsMargins(util.DPI(5), 0, 0, 0)
+        self.main_layout.setContentsMargins(util.DPI(5), 0, 0, 0)
         self.main_layout.addLayout(self.default_cam_layout)
 
         self.cams_scroll = widgets.HorizontalScrollArea(util.DPI(26), self)
@@ -417,9 +406,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
             # Get existing buttons from layout
             existing_buttons = {
-                self.cams_scroll.container_layout.itemAt(i).widget().camera: self.cams_scroll.container_layout.itemAt(
-                    i
-                ).widget()
+                self.cams_scroll.container_layout.itemAt(i).widget().camera: self.cams_scroll.container_layout.itemAt(i).widget()
                 for i in range(self.cams_scroll.container_layout.count())
                 if isinstance(
                     self.cams_scroll.container_layout.itemAt(i).widget(),
@@ -484,30 +471,31 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         menu_general.addAction(title_action)
 
         self.reload_btn = menu_general.addAction(QIcon(util.return_icon_path("refresh")), "Refresh Cameras")
-        menu_general.addSeparator()
-
-        self.about = menu_general.addAction(QIcon(util.return_icon_path("info")), "About")
-        self.updates = menu_general.addAction(QIcon(util.return_icon_path("check_updates")), "Check for Updates")
 
         menu_general.addSeparator()
 
-        self.settings_btn = menu_general.addAction(
-            QIcon(util.return_icon_path("default_attributes")), "Default Attributes"
-        )
-        menu_general.addSeparator()
+        self.settings_btn = menu_general.addAction(QIcon(util.return_icon_path("default_attributes")), "Default Attributes")
+        # menu_general.addSeparator()
 
         self._create_dock_menu(menu_general)
+
+        menu_general.addSeparator()
+
+        self.updates = menu_general.addAction(QIcon(util.return_icon_path("check_updates")), "Check for Updates")
         self._create_settings_menu(menu_general)
+        self.about = menu_general.addAction(QIcon(util.return_icon_path("info")), "About")
 
         ## TOOLS MENU ##
 
         menu_tools = widgets.OpenMenu("Tools", menu_bar)
-        menu_bar.addMenu(menu_tools)
         menu_tools.setTearOffEnabled(True)
+        menu_bar.addMenu(menu_tools)
+
         self.followCam = menu_tools.addAction(QIcon(util.return_icon_path("follow")), "Follow Cam")
         self.aimCam = menu_tools.addAction(QIcon(util.return_icon_path("aim")), "Aim Cam")
         menu_tools.addSeparator()
         self.multicams = menu_tools.addAction(QIcon(util.return_icon_path("camera_multicams")), "MultiCams")
+        self.spaceswitch = menu_tools.addAction(QIcon(util.return_icon_path("spaceswitch.svg")), "SpaceSwitch")
 
         menu_tools.addSeparator()
 
@@ -530,7 +518,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
             self.populate_version_bar()
 
         menu_bar.setCornerWidget(self.dock_ui_btn)
-        self.main_widget_layout.setMenuBar(menu_bar)
+        self.main_layout.setMenuBar(menu_bar)
 
     def _create_dock_menu(self, parent_menu):
         self.dock_menu = QMenu("Dock Window")
@@ -591,9 +579,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         self.startup_run_Cams_checkbox.setStatusTip("Run Cams on Startup")
         self.startup_run_Cams_checkbox.setCheckable(True)
         self.startup_run_Cams_checkbox.setChecked(self.startup_run_cams)
-        self.startup_run_Cams_checkbox.triggered.connect(
-            lambda state=self.startup_run_Cams_checkbox.isChecked(): self.change_startup_run_cams(state)
-        )
+        self.startup_run_Cams_checkbox.triggered.connect(lambda state=self.startup_run_Cams_checkbox.isChecked(): self.change_startup_run_cams(state))
 
         self.startup_Viewport_checkbox = system_menu.addAction("Viewport on Startup")
         self.startup_Viewport_checkbox.setToolTip("Apply Show settings to Viewports on Startup")
@@ -607,9 +593,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         self.startup_HUD_checkbox = system_menu.addAction("HUD on Startup")
         self.startup_HUD_checkbox.setCheckable(True)
         self.startup_HUD_checkbox.setChecked(self.startup_hud)
-        self.startup_HUD_checkbox.triggered.connect(
-            lambda state=self.startup_HUD_checkbox.isChecked(): self.process_prefs(startup_hud=state)
-        )
+        self.startup_HUD_checkbox.triggered.connect(lambda state=self.startup_HUD_checkbox.isChecked(): self.process_prefs(startup_hud=state))
 
         system_menu.addSeparator()
 
@@ -650,6 +634,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         self.followCam.triggered.connect(partial(self._run_tools, "followCam"))
         self.aimCam.triggered.connect(partial(self._run_tools, "aimCam"))
         self.multicams.triggered.connect(partial(self._run_tools, "multicams"))
+        self.spaceswitch.triggered.connect(self._run_spaceswitch)
 
         self.reset_cams_data.triggered.connect(lambda: self.process_prefs(reset=True))
         self.updates.triggered.connect(partial(funcs.check_for_updates, self))
@@ -661,6 +646,58 @@ class UI(MayaQWidgetDockableMixin, QDialog):
         funcs.run_tools(tool)
 
         self.reload_cams_UI()
+
+    def _run_spaceswitch(self):
+        try:
+            from aleha_tools import spaceswitch
+            from importlib import reload
+
+            reload(spaceswitch)
+            spaceswitch.show()
+
+            dlg = spaceswitch._MAIN_DICT.get("_SPACESWITCH_INSTANCE")
+            if dlg:
+                try:
+                    dlg.destroyed.disconnect()
+                except Exception:
+                    pass
+                dlg.destroyed.connect(self._check_spaceswitch_shelf)
+        except Exception as e:
+            cmds.warning("Error running SpaceSwitch: {}".format(e))
+
+    def _check_spaceswitch_shelf(self):
+        if self.startup_prefs.get("spaceswitch_dont_ask_shelf", False):
+            return
+
+        if not util.find_shelf_button("spaceswitch"):
+            from .base_widgets import QFlatConfirmDialog
+
+            res = QFlatConfirmDialog.question(
+                self,
+                "Closing SpaceSwitch",
+                "You launched SpaceSwitch from Cams.\nDo you want to create a shelf button for it?",
+                title="Add SpaceSwitch to Shelf?",
+                buttons=[
+                    QFlatConfirmDialog.CustomButton("Add to Shelf", positive=True, icon=util.return_icon_path("add")),
+                    QFlatConfirmDialog.CustomButton("Don't ask again", positive=False, icon=util.return_icon_path("cancel")),
+                    QFlatConfirmDialog.CustomButton("No", positive=False, icon=util.return_icon_path("close")),
+                ],
+                highlight="Add to Shelf",
+                icon=util.return_icon_path("spaceswitch.svg"),
+                closeButton=False,
+            )
+
+            if res:
+                name = res.get("name")
+                if name == "Add to Shelf":
+                    from . import updater
+
+                    updater.add_shelf_button("spaceswitch")
+                elif name == "Don't ask again":
+                    self.startup_prefs["spaceswitch_dont_ask_shelf"] = True
+                    if "startupSettings" in getattr(self, "user_prefs", {}):
+                        self.user_prefs["startupSettings"]["spaceswitch_dont_ask_shelf"] = True
+                    settings.save_to_disk("startupSettings", self.startup_prefs)
 
     def open_version_bar(self):
         if not funcs.check_author():
@@ -705,12 +742,8 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
         self.version_bar.addSeparator()
 
-        self.compile_update = self.version_bar.addAction(
-            QIcon(util.return_icon_path("check_updates")), "Compile Update"
-        )
-        self.generate_release_notes = self.version_bar.addAction(
-            QIcon(util.return_icon_path("refresh")), "Generate Changes"
-        )
+        self.compile_update = self.version_bar.addAction(QIcon(util.return_icon_path("check_updates")), "Compile Update")
+        self.generate_release_notes = self.version_bar.addAction(QIcon(util.return_icon_path("refresh")), "Generate Changes")
         self.version_bar.addSeparator()
 
         self.open_release_notes = self.version_bar.addAction(QIcon(util.return_icon_path("load")), "Open Release Notes")
@@ -914,9 +947,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
     ):
         _initial_settings = settings.initial_settings()
 
-        self.cams_prefs = self.user_prefs.get("defaultCameraSettings", None) or _initial_settings.get(
-            "defaultCameraSettings", None
-        )
+        self.cams_prefs = self.user_prefs.get("defaultCameraSettings", None) or _initial_settings.get("defaultCameraSettings", None)
         self.startup_prefs = self.user_prefs.get("startupSettings", {}) or _initial_settings.get("startupSettings", {})
 
         # Set the value of the attribute to a dictionary of multiple variable values
@@ -956,30 +987,17 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
         self.default_cam = self.cams_prefs.get("camera", None) or _initial_settings["defaultCameraSettings"]["camera"]
 
-        self.default_overscan = (
-            self.cams_prefs.get("overscan", None) or _initial_settings["defaultCameraSettings"]["overscan"]
-        )
+        self.default_overscan = self.cams_prefs.get("overscan", None) or _initial_settings["defaultCameraSettings"]["overscan"]
 
-        self.default_near_clip_plane = (
-            self.cams_prefs.get("near_clip", None) or _initial_settings["defaultCameraSettings"]["near_clip"]
-        )
+        self.default_near_clip_plane = self.cams_prefs.get("near_clip", None) or _initial_settings["defaultCameraSettings"]["near_clip"]
 
-        self.default_far_clip_plane = (
-            self.cams_prefs.get("far_clip", None) or _initial_settings["defaultCameraSettings"]["far_clip"]
-        )
+        self.default_far_clip_plane = self.cams_prefs.get("far_clip", None) or _initial_settings["defaultCameraSettings"]["far_clip"]
 
-        self.default_resolution = (
-            self.cams_prefs.get("display_resolution", None)
-            or _initial_settings["defaultCameraSettings"]["display_resolution"]
-        )
+        self.default_resolution = self.cams_prefs.get("display_resolution", None) or _initial_settings["defaultCameraSettings"]["display_resolution"]
 
-        self.default_gate_mask_opacity = (
-            self.cams_prefs.get("mask_opacity", None) or _initial_settings["defaultCameraSettings"]["mask_opacity"]
-        )
+        self.default_gate_mask_opacity = self.cams_prefs.get("mask_opacity", None) or _initial_settings["defaultCameraSettings"]["mask_opacity"]
 
-        self.default_gate_mask_color = (
-            self.cams_prefs.get("mask_color", None) or _initial_settings["defaultCameraSettings"]["mask_color"]
-        )
+        self.default_gate_mask_color = self.cams_prefs.get("mask_color", None) or _initial_settings["defaultCameraSettings"]["mask_color"]
 
         self.position = (
             self.startup_prefs.get("position")
@@ -1027,9 +1045,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
                     "Reset Settings",
                     "About to erase all Settings for Cams!\nThis action is NOT undoable.",
                     buttons=[
-                        base_widgets.QFlatConfirmDialog.CustomButton(
-                            "Reset", positive=True, icon=util.return_icon_path("remove")
-                        ),
+                        base_widgets.QFlatConfirmDialog.CustomButton("Reset", positive=True, icon=util.return_icon_path("remove")),
                         base_widgets.QFlatConfirmDialog.Cancel,
                     ],
                     highlight=base_widgets.QFlatConfirmDialog.Cancel,
@@ -1141,9 +1157,7 @@ class UI(MayaQWidgetDockableMixin, QDialog):
 
         new_camera = new_camera[0]
         try:
-            shape_type = cmds.nodeType(cmds.listRelatives(new_camera)) or cmds.nodeType(
-                cmds.listRelatives(new_camera, shapes=True)[0]
-            )
+            shape_type = cmds.nodeType(cmds.listRelatives(new_camera)) or cmds.nodeType(cmds.listRelatives(new_camera, shapes=True)[0])
         except Exception:
             return
 

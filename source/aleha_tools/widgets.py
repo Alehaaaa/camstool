@@ -217,7 +217,7 @@ class MenuTitleAction(QWidgetAction):
         label.setCursor(Qt.PointingHandCursor)
         label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         label.setFixedHeight(DPI(32))
-        label.setContentsMargins(DPI(20), 0, DPI(20), 0)
+        label.setContentsMargins(DPI(25), 0, DPI(20), DPI(1))
         label.setStyleSheet(
             """
             QLabel {
@@ -225,10 +225,11 @@ class MenuTitleAction(QWidgetAction):
             + str(DPI(14))
             + """px;
                 font-weight: bold;
-                color: #ececec;
+                color: #bbbbbb;
             }
             QLabel:hover {
                 background-color: rgb(80, 133, 164);
+                color: #e0e0e0;
             }
             """
         )
@@ -507,12 +508,8 @@ class HoverButton(QPushButton):
         menu.addAction(action)
 
     def _add_selection_actions(self, menu):
-        self.select_action = menu.addAction(
-            self.icons["select"], "Select", partial(select_cam, self._camera, self)
-        )
-        self.deselect_action = menu.addAction(
-            self.icons["deselect"], "Deselect", partial(deselect_cam, self._camera, self)
-        )
+        self.select_action = menu.addAction(self.icons["select"], "Select", partial(select_cam, self._camera, self))
+        self.deselect_action = menu.addAction(self.icons["deselect"], "Deselect", partial(deselect_cam, self._camera, self))
 
         is_selected = self._camera in (cmds.ls(selection=True) or [])
         self.select_action.setVisible(not is_selected)
@@ -629,18 +626,21 @@ class HoverButton(QPushButton):
 
         if event.button() == Qt.LeftButton:
             self._start_pos = None
-            self._set_background_color("light")
+            if self.underMouse():
+                self._set_background_color("light")
+            else:
+                self._set_background_color("base")
 
-            # Start timer for single click if we are modifiable (meaning we might double click to rename)
-            # If standard camera/locked, maybe we don't care about double click rename?
-            # But consistent behavior is better.
             if self.rect().contains(event.pos()) and not self._renaming_active:
                 if is_dots_click:
                     self._show_context_menu(event.pos())
                 else:
                     self._click_timer.start()
         elif event.button() == Qt.RightButton:
-            self._set_background_color("light")
+            if self.underMouse():
+                self._set_background_color("light")
+            else:
+                self._set_background_color("base")
 
         super().mouseReleaseEvent(event)
 
@@ -665,7 +665,21 @@ class HoverButton(QPushButton):
         drag.setPixmap(self.grab())
         drag.setHotSpot(event.pos() - self.rect().topLeft())
 
+        self.setDown(False)
+        if self.underMouse():
+            self._set_background_color("light")
+        else:
+            self._set_background_color("base")
+
         drag.exec_(Qt.MoveAction)
+
+        self.setDown(False)
+        if self.underMouse():
+            self._set_background_color("light")
+        else:
+            self._set_background_color("base")
+            self.setIcon(self.icons["default"])
+
         self._handle_drop_position(event)
 
     def eventFilter(self, obj, event):
@@ -787,10 +801,7 @@ class HoverButton(QPushButton):
 
     # Drag and Drop ###########################################################
     def _should_start_drag(self, event):
-        return (
-            event.buttons() == Qt.LeftButton
-            and (event.pos() - self._start_pos).manhattanLength() >= QApplication.startDragDistance()
-        )
+        return event.buttons() == Qt.LeftButton and (event.pos() - self._start_pos).manhattanLength() >= QApplication.startDragDistance()
 
     def _handle_drop_position(self, event):
         btn_pos = event.globalPos() - QPoint(self.width() // 2, self.height() // 2)
@@ -893,10 +904,7 @@ class HoverButton(QPushButton):
     def _add_filmgate_action(self, menu):
         action = menu.addAction("FilmGate Mask", self._toggle_filmgate)
         action.setCheckable(True)
-        action.setChecked(
-            cmds.getAttr("%s.displayFilmGate" % self._camera)
-            and cmds.getAttr("%s.displayGateMask" % self._camera)
-        )
+        action.setChecked(cmds.getAttr("%s.displayFilmGate" % self._camera) and cmds.getAttr("%s.displayGateMask" % self._camera))
 
     def _toggle_filmgate(self):
         cmds.setAttr("%s.displayFilmGate" % self._camera, self.sender().isChecked())
@@ -920,9 +928,7 @@ class HoverButton(QPushButton):
         menu.addAction(self.icons["tearoff"], "Tear Off Copy", partial(tear_off_cam, self._camera))
 
     def _add_delete_action(self, menu):
-        if self._camera != self._parentUI.default_cam[0] and not cmds.referenceQuery(
-            self._camera, isNodeReferenced=True
-        ):
+        if self._camera != self._parentUI.default_cam[0] and not cmds.referenceQuery(self._camera, isNodeReferenced=True):
             menu.addSeparator()
             menu.addAction(
                 self.icons["remove"],
@@ -1113,9 +1119,7 @@ class Attributes(QFlatDialog):
         # Second section: Display Attributes
         self.gate_mask_opacity_slider = QSlider(Qt.Horizontal)
         self.gate_mask_opacity_slider.setRange(0, 1000)
-        self.gate_mask_opacity_slider.setValue(
-            int(round(cmds.getAttr(self.cam + ".displayGateMaskOpacity") * 1000))
-        )
+        self.gate_mask_opacity_slider.setValue(int(round(cmds.getAttr(self.cam + ".displayGateMaskOpacity") * 1000)))
         self.gate_mask_opacity_value = QLineEdit()
         self.gate_mask_opacity_value.setText(str(self.get_float(self.gate_mask_opacity_slider.value())))
         self.gate_mask_opacity_value.setFixedWidth(DPI(80))
@@ -1222,27 +1226,17 @@ class Attributes(QFlatDialog):
 
                 target.setEnabled(settable)
 
-        self.focal_length_slider.valueChanged.connect(
-            lambda: self.focal_length_value.setText(str(self.get_float(self.focal_length_slider.value())))
-        )
+        self.focal_length_slider.valueChanged.connect(lambda: self.focal_length_value.setText(str(self.get_float(self.focal_length_slider.value()))))
 
-        self.overscan_slider.valueChanged.connect(
-            lambda: self.overscan_value.setText(str(self.get_float(self.overscan_slider.value())))
-        )
+        self.overscan_slider.valueChanged.connect(lambda: self.overscan_value.setText(str(self.get_float(self.overscan_slider.value()))))
 
         self.gate_mask_opacity_slider.valueChanged.connect(
-            lambda: self.gate_mask_opacity_value.setText(
-                self.get_float(self.gate_mask_opacity_slider.value())
-            )
+            lambda: self.gate_mask_opacity_value.setText(self.get_float(self.gate_mask_opacity_slider.value()))
         )
 
-        self.gate_mask_color_picker.clicked.connect(
-            lambda: self.show_color_selector(self.gate_mask_color_picker)
-        )
+        self.gate_mask_color_picker.clicked.connect(lambda: self.show_color_selector(self.gate_mask_color_picker))
 
-        self.gate_mask_color_slider.valueChanged.connect(
-            lambda: self.update_button_value(self.gate_mask_color_slider.value())
-        )
+        self.gate_mask_color_slider.valueChanged.connect(lambda: self.update_button_value(self.gate_mask_color_slider.value()))
 
     def create_lock_button(self):
         lock_btn = QPushButton()
@@ -1326,18 +1320,14 @@ class Attributes(QFlatDialog):
         qcolor = QColor(*[int(q * 255) for q in rgb])
         h, s, v, _ = qcolor.getHsv()
         qcolor.setHsv(h, s, v)
-        self.gate_mask_color_picker.setStyleSheet(
-            "#gateMaskColorPicker { background-color: %s; }" % qcolor.name()
-        )
+        self.gate_mask_color_picker.setStyleSheet("#gateMaskColorPicker { background-color: %s; }" % qcolor.name())
         self.gate_mask_color_slider.setValue(v)
 
     def update_button_value(self, value):
         color = self.gate_mask_color_picker.palette().color(QPalette.Button)
         h, s, v, _ = color.getHsv()
         color.setHsv(h, s, value)
-        self.gate_mask_color_picker.setStyleSheet(
-            "#gateMaskColorPicker { background-color: %s; }" % color.name()
-        )
+        self.gate_mask_color_picker.setStyleSheet("#gateMaskColorPicker { background-color: %s; }" % color.name())
 
     def show_color_selector(self, button):
         initial_color = button.palette().color(QPalette.Base)
@@ -1488,9 +1478,7 @@ class DefaultSettings(QFlatDialog):
                     widget = value.itemAt(i).widget()
                     if isinstance(widget, QWidget):
                         checkbox.setChecked(widget.isEnabled())
-                        checkbox.toggled.connect(
-                            lambda checked=checkbox.isChecked(), v=widget: v.setEnabled(checked)
-                        )
+                        checkbox.toggled.connect(lambda checked=checkbox.isChecked(), v=widget: v.setEnabled(checked))
                 widget_container.addLayout(value)
             if isinstance(value, QWidget):
                 checkbox.setChecked(value.isEnabled())
@@ -1509,23 +1497,15 @@ class DefaultSettings(QFlatDialog):
         )
 
     def create_connections(self):
-        self.overscan_slider.valueChanged.connect(
-            lambda: self.overscan_value.setText(str(self.get_float(self.overscan_slider.value())))
-        )
+        self.overscan_slider.valueChanged.connect(lambda: self.overscan_value.setText(str(self.get_float(self.overscan_slider.value()))))
 
         self.gate_mask_opacity_slider.valueChanged.connect(
-            lambda: self.gate_mask_opacity_value.setText(
-                self.get_float(self.gate_mask_opacity_slider.value())
-            )
+            lambda: self.gate_mask_opacity_value.setText(self.get_float(self.gate_mask_opacity_slider.value()))
         )
 
-        self.gate_mask_color_picker.clicked.connect(
-            lambda: self.show_color_selector(self.gate_mask_color_picker)
-        )
+        self.gate_mask_color_picker.clicked.connect(lambda: self.show_color_selector(self.gate_mask_color_picker))
 
-        self.gate_mask_color_slider.valueChanged.connect(
-            lambda: self.update_button_value(self.gate_mask_color_slider.value())
-        )
+        self.gate_mask_color_slider.valueChanged.connect(lambda: self.update_button_value(self.gate_mask_color_slider.value()))
 
         all_widgets = [
             self.near_clip_plane,
@@ -1545,18 +1525,14 @@ class DefaultSettings(QFlatDialog):
         qcolor = QColor(*[int(q * 255) for q in rgb])
         h, s, v, _ = qcolor.getHsv()
         qcolor.setHsv(h, s, v)
-        self.gate_mask_color_picker.setStyleSheet(
-            "#gateMaskColorPicker { background-color: %s; }" % qcolor.name()
-        )
+        self.gate_mask_color_picker.setStyleSheet("#gateMaskColorPicker { background-color: %s; }" % qcolor.name())
         self.gate_mask_color_slider.setValue(v)
 
     def update_button_value(self, value):
         color = self.gate_mask_color_picker.palette().color(QPalette.Button)
         h, s, v, _ = color.getHsv()
         color.setHsv(h, s, value)
-        self.gate_mask_color_picker.setStyleSheet(
-            "#gateMaskColorPicker { background-color: %s; }" % color.name()
-        )
+        self.gate_mask_color_picker.setStyleSheet("#gateMaskColorPicker { background-color: %s; }" % color.name())
 
     def show_color_selector(self, button):
         initial_color = button.palette().color(QPalette.Base)

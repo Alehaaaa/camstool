@@ -185,18 +185,12 @@ def install(tool, command=None, file_path=None):
     return True
 
 
-def add_shelf_button(tool, command):
+def add_shelf_button(tool, command=None):
+    from .util import find_shelf_button
+
     currentShelf = cmds.tabLayout(mel.eval("$nul=$gShelfTopLevel"), q=1, st=1)
 
-    def find():
-        buttons = cmds.shelfLayout(currentShelf, q=True, ca=True)
-        if buttons:
-            for b in buttons:
-                if cmds.shelfButton(b, exists=True) and cmds.shelfButton(b, q=True, l=True) == tool:
-                    return True
-        return False
-
-    if not find():
+    if not find_shelf_button(tool):
         toolsFolder = Path(__file__).resolve().parent
         icon_path = toolsFolder / "_icons" / (tool + ".svg")
         cmds.shelfButton(
@@ -207,10 +201,11 @@ def add_shelf_button(tool, command):
             annotation=tool.title() + " by Aleha",
         )
 
-        QFlatConfirmDialog.question(
+        QFlatConfirmDialog.information(
             None,
             "Success",
-            "Added a Button for %s to the current shelf." % tool.title(),
+            title="Shelf button created",
+            message="You can now click the %s button on the shelf to launch the tool." % tool.title(),
             closeButton=True,
         )
 
@@ -283,20 +278,26 @@ def _get_changelog():
 class UpdateCheckWorker(QThread):
     finished = Signal(bool, object, object)  # success, latest_version, changelog
 
-    def __init__(self, installed_version):
-        super().__init__()
+    def __init__(self, installed_version, force=False, delay=0, parent=None):
+        super().__init__(parent)
         self.installed_version = installed_version
+        self.force = force
+        self.delay = delay
 
     def run(self):
+        if self.delay > 0:
+            self.msleep(self.delay)
+
         success, latest_version = get_latest_version()
         if not success:
             self.finished.emit(False, latest_version, None)
             return
 
-        comp = compare_versions(latest_version, self.installed_version)
-        if comp <= 0:
-            self.finished.emit(True, None, None)
-            return
+        if not self.force:
+            comp = compare_versions(latest_version, self.installed_version)
+            if comp <= 0:
+                self.finished.emit(True, None, None)
+                return
 
         success, changelog = _get_changelog()
         if not success:
@@ -307,9 +308,20 @@ class UpdateCheckWorker(QThread):
 
 
 def _check_for_updates(ui, warning=True, force=False):
+    # Prevent overlapping update checks
+    if getattr(ui, "_update_worker", None) is not None and ui._update_worker.isRunning():
+        if warning:
+            util.make_inViewMessage("<b>Update Check</b><br>Currently checking for updates...", "info.svg")
+        return
+
     installed_version = ui.VERSION
 
     def handle_result(success, latest_version, changelog):
+        # Cleanup worker reference when finished
+        if getattr(ui, "_update_worker", None) is not None:
+            ui._update_worker.deleteLater()
+            ui._update_worker = None
+
         if not success:
             if warning:
                 util.make_inViewMessage(latest_version)  # latest_version contains error msg here
@@ -372,9 +384,7 @@ def _check_for_updates(ui, warning=True, force=False):
                     QFlatConfirmDialog.question(
                         None,
                         "%s Update" % ui.TITLE,
-                        "You have successfully updated the tool!<br><br>"
-                        + "These were the last changes:<br>"
-                        + formated_changelog,
+                        "You have successfully updated the tool!<br><br>" + "These were the last changes:<br>" + formated_changelog,
                         title="Installed %s" % latest_version.replace("\n", "").replace("\r", ""),
                         icon=util.return_icon_path("success.svg"),
                         closeButton=True,
@@ -386,16 +396,9 @@ def _check_for_updates(ui, warning=True, force=False):
             elif update_available.clicked_button == "Skip":
                 ui.process_prefs(skip_update=True)
 
-    if not force:
-        # For startup/regular checks, use the thread
-        ui._update_worker = UpdateCheckWorker(installed_version)
-        ui._update_worker.finished.connect(handle_result)
-        # Delay startup check slightly to ensure UI is ready
-        QTimer.singleShot(1000 if not warning else 0, ui._update_worker.start)
-    else:
-        # For force=True (manual triggered), do it synchronously to show immediate feedback if needed
-        # Or just use the same worker but start immediately.
-        # Actually, let's just use the worker for everything to be consistent.
-        ui._update_worker = UpdateCheckWorker("0.0.0")  # Force update by spoofing version
-        ui._update_worker.finished.connect(handle_result)
-        ui._update_worker.start()
+    # Delay startup check slightly to ensure UI is ready
+    delay = 0 if warning or force else 1000
+
+    ui._update_worker = UpdateCheckWorker(installed_version, force=force, delay=delay, parent=ui)
+    ui._update_worker.finished.connect(handle_result)
+    ui._update_worker.start()

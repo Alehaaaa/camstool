@@ -1,5 +1,9 @@
 {
     "versions": {
+        "0.2.72": [
+            "Cams: Add SpaceSwitch tool to Tools menu.",
+            "UI layout refactor."
+        ],
         "0.2.71": [
             "Updated button styles.",
             "Popup DPI scaling.",

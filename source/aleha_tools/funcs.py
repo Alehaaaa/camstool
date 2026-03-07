@@ -36,6 +36,7 @@ from .util import (
     get_root_path,
     return_icon_path,
     compare_versions,
+    find_shelf_button,
 )
 from .base_widgets import QFlatConfirmDialog
 
@@ -121,9 +122,7 @@ def unistall(ui):
                 elif os.path.isdir(f):
                     shutil.rmtree(f)
 
-        buttons = cmds.shelfLayout(
-            cmds.tabLayout(mel.eval("$nul=$gShelfTopLevel"), q=1, st=1), q=True, ca=True
-        )
+        buttons = cmds.shelfLayout(cmds.tabLayout(mel.eval("$nul=$gShelfTopLevel"), q=1, st=1), q=True, ca=True)
         if buttons:
             for b in buttons:
                 if cmds.shelfButton(b, exists=True) and cmds.shelfButton(b, q=True, l=True) == ui.TOOL:
@@ -225,11 +224,7 @@ def get_cam_display(cam_panels, command, plugin=False):
 def set_cam_display(cam_panels, command, plugin=False, switch=None):
     var = get_cam_display(cam_panels, command, plugin) if switch is None else not switch
     for i in cam_panels:
-        e_cmd = (
-            "pluginObjects=('{}', {})".format(command, not var)
-            if plugin
-            else "{}={}".format(command, not var)
-        )
+        e_cmd = "pluginObjects=('{}', {})".format(command, not var) if plugin else "{}={}".format(command, not var)
         try:
             eval("cmds.modelEditor('{}', e=1, {})".format(i, e_cmd))
         except Exception:
@@ -278,13 +273,7 @@ def get_panels_from_camera(cam):
     else:
         cam_shape = cam
 
-    return list(
-        {
-            p
-            for p in cmds.getPanel(type="modelPanel")
-            if cmds.modelPanel(p, q=True, camera=True) in {cam, cam_shape}
-        }
-    )
+    return list({p for p in cmds.getPanel(type="modelPanel") if cmds.modelPanel(p, q=True, camera=True) in {cam, cam_shape}})
 
 
 def drag_insert_camera(camera, parent, pos):
@@ -521,29 +510,16 @@ def close_UI(ui, confirm=True):
         confirm = False
 
     if confirm and ui.confirm_exit:
-        currentShelf = cmds.tabLayout(mel.eval("$nul=$gShelfTopLevel"), q=1, st=1)
         tool = ui.TITLE.lower()
 
-        def find():
-            buttons = cmds.shelfLayout(currentShelf, q=True, ca=True)
-            if buttons is None:
-                return False
-            else:
-                for b in buttons:
-                    if cmds.shelfButton(b, exists=True) and cmds.shelfButton(b, q=True, l=True) == tool:
-                        return True
-            return False
-
-        if not find():
+        if not find_shelf_button(tool):
             res = QFlatConfirmDialog.question(
                 None,
                 "About to close Cams!",
                 "Closing Cams will NOT reopen the UI on Maya's next launch.\nYou will have to use a Shelf button or run Cams launch script.",
                 buttons=[
+                    QFlatConfirmDialog.CustomButton("Add to Shelf", positive=True, icon=return_icon_path("add")),
                     QFlatConfirmDialog.Yes,
-                    QFlatConfirmDialog.CustomButton(
-                        "Add to Shelf", positive=True, icon=return_icon_path("add")
-                    ),
                     QFlatConfirmDialog.Cancel,
                 ],
                 highlight="Add to Shelf",
@@ -592,9 +568,7 @@ def run_tools(tool, ui=None):
 def check_author():
     import base64 as b
 
-    return os.getenv("USER", os.getenv("USERNAME")).lower() in [
-        b.b64decode(x).decode() for x in [b"YWxlamFuZHJv", b"YWxlaGE="]
-    ]
+    return os.getenv("USER", os.getenv("USERNAME")).lower() in [b.b64decode(x).decode() for x in [b"YWxlamFuZHJv", b"YWxlaGE="]]
 
 
 def _load_module(path, name):
