@@ -1,5 +1,10 @@
 {
     "versions": {
+        "0.2.70": [
+            "UI improvements.",
+            "SpaceSwitch: Refactored code and cleaned up.",
+            "And more..."
+        ],
         "0.2.69-hotfix": [
             "SpaceSwitch: Fixed popup/show logic."
         ],

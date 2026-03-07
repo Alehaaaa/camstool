@@ -1,3 +1,5 @@
+import asyncio.format_helpers
+
 try:
     from PySide6.QtWidgets import (  # type: ignore
         QWidget,
@@ -113,9 +115,7 @@ class HoverableIcon:
     def apply(btn, icon_path, highlight=False, brighten_amount=80):
         base_icon = QIcon(icon_path)
         if highlight:
-            btn._icon_normal = HoverableIcon._color_icon(
-                base_icon, HoverableIcon.HIGHLIGHT_HEX, btn.iconSize()
-            )
+            btn._icon_normal = HoverableIcon._color_icon(base_icon, HoverableIcon.HIGHLIGHT_HEX, btn.iconSize())
         else:
             btn._icon_normal = base_icon
 
@@ -279,13 +279,13 @@ class BottomBar(QFrame):
     A container widget for arranging FlatButtons horizontally.
     """
 
-    def __init__(self, buttons=[], margins=8, parent=None):
+    def __init__(self, buttons=[], margins=8, spacing=6, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(DPI(margins), DPI(margins), DPI(margins), DPI(margins))
-        layout.setSpacing(DPI(6))
+        layout.setSpacing(DPI(spacing))
 
         for button in buttons:
             layout.addWidget(button)
@@ -370,7 +370,7 @@ class QFlatDialog(QDialog):
                 return
         super().keyPressEvent(event)
 
-    def setBottomBar(self, buttons=None, closeButton=False, highlight=None):
+    def setBottomBar(self, buttons=None, margins=8, spacing=6, closeButton=False, highlight=None):
         """Dynamically creates and adds a bottom bar with custom buttons."""
         if self.bottomBar:
             self.root_layout.removeWidget(self.bottomBar)
@@ -399,7 +399,7 @@ class QFlatDialog(QDialog):
         created_buttons = self._defineButtons(btn_data)
 
         if created_buttons:
-            self.bottomBar = BottomBar(buttons=created_buttons, parent=self)
+            self.bottomBar = BottomBar(buttons=created_buttons, margins=margins, spacing=spacing, parent=self)
             self.root_layout.addWidget(self.bottomBar)
 
 
@@ -446,9 +446,7 @@ class QFlatConfirmDialog(QFlatDialog):
             pix = QPixmap(icon)
             if not pix.isNull():
                 icon_dim = DPI(80)
-                icon_label.setPixmap(
-                    pix.scaled(icon_dim, icon_dim, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                )
+                icon_label.setPixmap(pix.scaled(icon_dim, icon_dim, Qt.KeepAspectRatio, Qt.SmoothTransformation))
                 icon_label.setFixedSize(icon_dim, icon_dim)
                 content_layout.addWidget(icon_label, 0, Qt.AlignTop)
 
@@ -472,7 +470,7 @@ class QFlatConfirmDialog(QFlatDialog):
 
         self.root_layout.addWidget(content_widget)
 
-        self.setBottomBar(buttons, closeButton=closeButton, highlight=highlight)
+        self.setBottomBar(buttons, margins=0, spacing=2, closeButton=closeButton, highlight=highlight)
         self.adjustSize()
 
     def _buttonConfigHook(self, index, config):

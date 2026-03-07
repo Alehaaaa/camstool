@@ -264,7 +264,7 @@ class HUDWindow(QFlatDialog):
 
         # Create a layout for the widget
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(DPI(10), DPI(10), DPI(10), DPI(10))
+        layout.setContentsMargins(DPI(10), DPI(2), DPI(10), DPI(2))
 
         # Create the rectangle and add it to the layout
         rectangle = QFrame()
@@ -516,9 +516,7 @@ class HUDWindow(QFlatDialog):
                 if change:
                     if self.displayed_preset != "":
                         for combo in self.all_combos:
-                            current_combo = list(self.hud_items.values()).index(
-                                getattr(self, combo).currentText()
-                            )
+                            current_combo = list(self.hud_items.values()).index(getattr(self, combo).currentText())
                             if current_combo != self.user_prefs["presets"][self.displayed_preset][combo]:
                                 response = QFlatConfirmDialog.question(
                                     None,

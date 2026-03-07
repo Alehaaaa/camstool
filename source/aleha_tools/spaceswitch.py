@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 #
 #
 #  Copy this file in your scripts directory:
@@ -21,9 +23,6 @@
 #
 
 
-# -*- coding: utf-8 -*-
-
-
 import sys
 import math
 
@@ -34,44 +33,16 @@ from maya import OpenMayaUI as omui
 
 try:
     PYSIDE_VERSION = 2
-    from PySide2.QtCore import Qt, QPoint, QPointF, QRectF, QTimer, QSettings, QSize
-    from PySide2.QtGui import QColor, QPainter, QBrush, QPen, QPolygonF, QCursor, QPixmap, QGuiApplication
-    from PySide2.QtWidgets import (
-        QWidget,
-        QMainWindow,
-        QSizeGrip,
-        QVBoxLayout,
-        QHBoxLayout,
-        QFrame,
-        QLabel,
-        QPushButton,
-        QSizePolicy,
-        QGraphicsOpacityEffect,
-        QListWidget,
-        QListWidgetItem,
-        QMenu,
-    )
+    from PySide2.QtCore import *  # noqa: F403
+    from PySide2.QtGui import *  # noqa: F403
+    from PySide2.QtWidgets import *  # noqa: F403
     from shiboken2 import wrapInstance, isValid
 except ImportError:
     PYSIDE_VERSION = 6
-    from PySide6.QtCore import Qt, QPoint, QPointF, QRectF, QTimer, QSettings, QSize  # type: ignore
-    from PySide6.QtGui import QColor, QPainter, QBrush, QPen, QPolygonF, QCursor, QPixmap, QGuiApplication  # type: ignore
-    from PySide6.QtWidgets import (
-        QWidget,
-        QMainWindow,
-        QSizeGrip,
-        QVBoxLayout,
-        QHBoxLayout,
-        QFrame,
-        QLabel,
-        QPushButton,
-        QSizePolicy,
-        QGraphicsOpacityEffect,
-        QListWidget,
-        QListWidgetItem,
-        QMenu,
-    )  # type: ignore
-    from shiboken6 import wrapInstance, isValid  # type: ignore
+    from PySide6.QtCore import *  # noqa: F403
+    from PySide6.QtGui import *  # noqa: F403
+    from PySide6.QtWidgets import *  # noqa: F403
+    from shiboken6 import wrapInstance, isValid
 
 import aleha_tools
 from aleha_tools import base_widgets, util, widgets
@@ -89,13 +60,13 @@ _MAIN_DICT = sys.modules["__main__"].__dict__
 
 DATA = {
     "TOOL": "SpaceSwitch",
-    "VERSION": "1.3.4",
+    "VERSION": "1.3.5",
 }
 DATA["AUTHOR"] = aleha_tools.DATA["AUTHOR"]
 
 
 # =================================================================================
-# %% INFRASTRUCTURE & CORE LOGIC
+#  1. INFRASTRUCTURE & MAPPING
 # =================================================================================
 
 
@@ -161,7 +132,7 @@ class GimbalAnalyzer:
         except TypeError:
             # Classic API signature: getDependNode(index, MObject)
             mobj = om.MObject()
-            sel_list.getDependNode(index, mobj)  # type: ignore[arg-type]
+            sel_list.getDependNode(index, mobj)
             return mobj
 
     def get_rotation(self, obj):
@@ -261,7 +232,7 @@ class GimbalAnalyzer:
 
 
 # =================================================================================
-# %% BASE UI WIDGETS
+#  2. UI FOUNDATION
 # =================================================================================
 
 
@@ -277,7 +248,7 @@ class Grip(QSizeGrip):
 
     def mousePressEvent(self, e):
         self._start_geom = self._parent_widget.geometry()
-        self._parent_widget._pause_timer()
+        self._parent_widget._suspend_auto_close()
         super().mousePressEvent(e)
 
     def mouseReleaseEvent(self, e):
@@ -313,63 +284,67 @@ class FloatingWidget(base_widgets.QFlatDialog):
         self._drag_offset = QPoint()
         self._drag_start_pos = QPoint()
 
-        self._timer_enabled = True if popup else None
+        self._auto_close_active = True if popup else None
 
-        # New approach: Event-driven kill timer instead of polling
-        self._kill_timer = QTimer(self)
-        self._kill_timer.setSingleShot(True)
-        self._kill_timer.setInterval(400)  # Faster grace period
-        self._kill_timer.timeout.connect(self._check_kill_condition)
+        # Event-driven auto-close mechanism
+        self._auto_close_timer = QTimer(self)
+        self._auto_close_timer.setSingleShot(True)
+        self._auto_close_timer.setInterval(400)
+        self._auto_close_timer.timeout.connect(self._process_auto_close_request)
 
         self._setup_ui()
         self.setMouseTracking(True)
 
     def enterEvent(self, event):
-        self._kill_timer.stop()
+        self._auto_close_timer.stop()
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        if self._timer_enabled:
-            self._kill_timer.start()
+        if self._auto_close_active:
+            self._auto_close_timer.start()
         super().leaveEvent(event)
 
-    def _check_kill_condition(self):
-        # Different approach: Only check after leaving with grace period
-        if not self._timer_enabled or not self.isVisible():
+    def _process_auto_close_request(self):
+        """Evaluates whether the window should close based on current cursor position."""
+        if not self._auto_close_active or not self.isVisible():
             return
 
-        if self._is_mouse_over_any_part():
-            return  # Don't kill, we arrived somewhere safe
+        if self._is_cursor_within_bounds():
+            return  # Cursor is in a valid interaction zone
 
-        p = QCursor.pos()
-        r = self.frameGeometry()
-        dx = max(r.left() - p.x(), 0, p.x() - r.right())
-        dy = max(r.top() - p.y(), 0, p.y() - r.bottom())
+        cursor_pos = QCursor.pos()
+        bounds = self.frameGeometry()
 
-        # Still check distance to allow some "slop" room
+        # Calculate Manhattan distance slop for a more forgiving interaction feel
+        dx = max(bounds.left() - cursor_pos.x(), 0, cursor_pos.x() - bounds.right())
+        dy = max(bounds.top() - cursor_pos.y(), 0, cursor_pos.y() - bounds.bottom())
+
         if (dx * dx + dy * dy) > (self.AUTO_CLOSE_DIST * self.AUTO_CLOSE_DIST):
             self.close()
 
-    def _is_mouse_over_any_part(self):
-        p = QCursor.pos()
+    def _is_cursor_within_bounds(self):
+        """Geometric intersection check for the main widget and its active sub-popups."""
+        cursor_pos = QCursor.pos()
         if not isValid(self):
             return False
-        if self.frameGeometry().contains(p):
+
+        if self.frameGeometry().contains(cursor_pos):
             return True
+
         if (
             hasattr(self, "_active_popup")
             and self._active_popup
             and isValid(self._active_popup)
             and self._active_popup.isVisible()
         ):
-            if self._active_popup.frameGeometry().contains(p):
+            if self._active_popup.frameGeometry().contains(cursor_pos):
                 return True
         return False
 
     def _setup_ui(self):
         self.mainContent = QWidget(self)
         self.mainLayout = QVBoxLayout(self.mainContent)
-        self.mainLayout.setContentsMargins(util.DPI(8), util.DPI(10), util.DPI(8), util.DPI(10))
+        self.mainLayout.setContentsMargins(util.DPI(6), util.DPI(8), util.DPI(6), util.DPI(8))
         self.mainLayout.setSpacing(2)
 
         self.root_layout.insertWidget(0, self.mainContent, 1)
@@ -397,13 +372,8 @@ class FloatingWidget(base_widgets.QFlatDialog):
             self.bottomBar.deleteLater()
             self.bottomBar = None
 
+        kwargs.setdefault("margins", 0)
         super().setBottomBar(*args, **kwargs)
-
-        if hasattr(self, "mainLayout"):
-            # Compensate: Use margin when empty, remove it when buttons provide their own spacing
-            bottom_m = 0 if self.bottomBar else 10
-            curr = self.mainLayout.contentsMargins()
-            self.mainLayout.setContentsMargins(curr.left(), curr.top(), curr.right(), util.DPI(bottom_m))
 
     def showBottomBar(self):
         """Disables auto-kill and adds a default close button if no bar exists."""
@@ -411,7 +381,7 @@ class FloatingWidget(base_widgets.QFlatDialog):
             self._refresh_footer()
         elif not self.bottomBar:
             self.setBottomBar(closeButton=True)
-        self._disable_auto_kill()
+        self._disable_auto_close()
 
     def place_near_cursor(self):
         self.resize(self.sizeHint())
@@ -443,7 +413,7 @@ class FloatingWidget(base_widgets.QFlatDialog):
                 global_position = e.globalPosition().toPoint()
             self._drag_start_pos = global_position
             self._drag_offset = global_position - self.frameGeometry().topLeft()
-            self._pause_timer()
+            self._suspend_auto_close()
         super().mousePressEvent(e)
 
     def mouseMoveEvent(self, e):
@@ -467,42 +437,38 @@ class FloatingWidget(base_widgets.QFlatDialog):
             drag_dist = (global_position - self._drag_start_pos).manhattanLength()
             if drag_dist > util.DPI(10):
                 self.showBottomBar()
-            elif self._timer_enabled is False:
-                # Was a small click or tiny drag in popup mode, resume timer if still outside
-                self._timer_enabled = True
-                self._enable_timer()
+            elif self._auto_close_active is False:
+                # Resume tracking after small click/drag
+                self._auto_close_active = True
+                self._resume_auto_close()
 
         super().mouseReleaseEvent(e)
 
-    def _setup_timer(self):
-        pass
+    def _resume_auto_close(self):
+        """Restarts the auto-close timer if the cursor is currently outside the bounds."""
+        if self._auto_close_active is True and not self._is_cursor_within_bounds():
+            self._auto_close_timer.start()
 
-    def _enable_timer(self):
-        # Restart kill timer if we are in popup mode and already outside
-        # we check _timer_enabled is strictly True (not None or False which means pinned)
-        if self._timer_enabled is True and not self._is_mouse_over_any_part():
-            self._kill_timer.start()
+    def _suspend_auto_close(self):
+        """Pauses the auto-close timer and updates tracking state."""
+        if self._auto_close_active is True:
+            self._auto_close_active = False
+        if hasattr(self, "_auto_close_timer"):
+            self._auto_close_timer.stop()
 
-    def _pause_timer(self):
-        # Only set to False (paused) if we were actually in popup mode (True)
-        if self._timer_enabled is True:
-            self._timer_enabled = False
-        if hasattr(self, "_kill_timer"):
-            self._kill_timer.stop()
-
-    def _disable_auto_kill(self):
-        if hasattr(self, "_timer") and self._timer:
-            self._timer.stop()
-            self._timer = None
-        self._timer_enabled = None
+    def _disable_auto_close(self):
+        """Permanently stops the auto-close mechanism for the lifetime of the widget."""
+        if hasattr(self, "_auto_close_timer") and self._auto_close_timer:
+            self._auto_close_timer.stop()
+        self._auto_close_active = None
 
     def closeEvent(self, e):
-        self._disable_auto_kill()
+        self._disable_auto_close()
         super().closeEvent(e)
 
 
 # =================================================================================
-# CUSTOM WIDGETS
+#  3. SPECIFIC WIDGETS
 # =================================================================================
 
 
@@ -658,27 +624,27 @@ class AttributePopup(QWidget):
         self.close()
 
     def enterEvent(self, event):
-        # Notify parent about hover for unified focus management
+        # Notify parent for unified interaction state
         p = self.parent()
-        if p and hasattr(p, "_update_ui_focus"):
-            p._update_ui_focus(True)
+        if p and hasattr(p, "_update_interaction_state"):
+            p._update_interaction_state(True)
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         p = self.parent()
-        if p and hasattr(p, "_update_ui_focus"):
-            # Small delay to see if we moved back to the main window
-            QTimer.singleShot(150, lambda: p._update_ui_focus(False))
+        if p and hasattr(p, "_update_interaction_state"):
+            # Delay to check if focus moved back to main area
+            QTimer.singleShot(150, lambda: p._update_interaction_state(False))
         super().leaveEvent(event)
 
     def closeEvent(self, event):
         p = self.parent()
         if p:
-            # Re-evaluate parent's kill condition now that we're gone
+            # Re-evaluate parent's close conditions
             if hasattr(p, "_active_popup") and p._active_popup == self:
                 p._active_popup = None
-            if hasattr(p, "_enable_timer"):
-                p._enable_timer()
+            if hasattr(p, "_resume_auto_close"):
+                p._resume_auto_close()
         super().closeEvent(event)
 
     def show_beside(self, widget):
@@ -723,12 +689,13 @@ class AttributeItem(QWidget):
         self.is_toggle = len(self.options) <= 2
         self._hover_active = False
         self.setMouseTracking(True)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self._setup_ui()
 
     def _setup_ui(self):
         self.main_layout = QHBoxLayout(self)
-        self.main_layout.setContentsMargins(util.DPI(7), util.DPI(7), util.DPI(7), util.DPI(7))
-        self.main_layout.setSpacing(util.DPI(8))
+        self.main_layout.setContentsMargins(util.DPI(6), util.DPI(6), util.DPI(6), util.DPI(6))
+        self.main_layout.setSpacing(util.DPI(6))
 
         self.name_label = QLabel(self.label_text)
         self.name_label.setStyleSheet(f"color: #2a2a2a; font-size: {util.DPI(11)}px;")
@@ -821,14 +788,14 @@ class AttributeItem(QWidget):
         if all_frames is not None:
             # Find the required data mapping from the parent dialog
             options_map = None
-            for (attr, _), (item, o_map) in self.parent_dialog.comboboxes.items():
+            for (attr, _), (item, o_map) in self.parent_dialog._active_switch_widgets.items():
                 if item == self:
                     options_map = o_map
                     break
 
             if options_map:
                 enum_value = self.options[idx]
-                self.parent_dialog.apply_changes(
+                self.parent_dialog._apply_attribute_switch(
                     enum_value, self.enum_attr, options_map, all_frames_override=all_frames
                 )
 
@@ -836,7 +803,8 @@ class AttributeItem(QWidget):
         return self.options[self.current_idx] if self.options else ""
 
 
-# %% UI BASE CLASSES (MODULAR WRAPPER)
+# =================================================================================
+#  4. SETUP DIALOGS
 # =================================================================================
 
 
@@ -845,8 +813,8 @@ class SetupTargetsDialog(FloatingWidget):
         super().__init__(popup=False, parent=parent)
         self.on_close = on_close
 
-        if parent and hasattr(parent, "_pause_timer"):
-            parent._pause_timer()
+        if parent and hasattr(parent, "_suspend_auto_close"):
+            parent._suspend_auto_close()
 
         self.objects_dict = objects_dict
         self._create_layouts()
@@ -891,8 +859,8 @@ class SetupTargetsDialog(FloatingWidget):
             self.on_close(self.objects_dict.keys())
 
         parent = self.parent()
-        if parent and hasattr(parent, "_enable_timer"):
-            parent._enable_timer()
+        if parent and hasattr(parent, "_resume_auto_close"):
+            parent._resume_auto_close()
 
         super().closeEvent(event)
 
@@ -1044,7 +1012,7 @@ class Timeline(QWidget):
 
 
 # =================================================================================
-# %% APPLICATION IMPLEMENTATION (SPACE SWITCH)
+#  5. APPLICATION (SPACE SWITCH)
 # =================================================================================
 
 
@@ -1070,11 +1038,8 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         self._popup_timer.setSingleShot(True)
         self._popup_timer.setInterval(100)
         self._popup_timer.timeout.connect(self._show_pending_popup)
-
-        self.setWindowTitle("%s %s" % (DATA.get("TITLE"), DATA.get("VERSION")))
-
-        self.settings = QSettings(DATA.get("AUTHOR", {}).get("NAME"), DATA.get("TITLE"))
-        self.instance_settings()
+        self.settings = QSettings(DATA.get("AUTHOR", {}).get("NAME"), DATA.get("TOOL"))
+        self._load_persistent_settings()
 
         self.analyzer = GimbalAnalyzer()
         self._cb = CallbackManager()
@@ -1083,8 +1048,8 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         self._create_selection_layout()
         self._add_callbacks()
 
-        self.comboboxes = {}
-        self.last_selection = []
+        self._active_switch_widgets = {}
+        self._previous_selection = []
 
         self.refresh()
 
@@ -1094,22 +1059,25 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         self.deleteLater()
 
     # =================================================================================
-    # 2. UI CONSTRUCTION & FORMATTING
+    #  2. UI CONSTRUCTION & LIFECYCLE
     # =================================================================================
 
     def _create_layouts(self):
-        # Main content widget that holds layouts
+        """Builds the main container layouts."""
         self.mainContent.setContextMenuPolicy(Qt.CustomContextMenu)
         self.mainContent.customContextMenuRequested.connect(self._show_context_menu)
 
         self.enums_layout = QVBoxLayout()
         self.enums_layout.setSpacing(util.DPI(1))
+
+        self.mainLayout.addStretch()
         self.mainLayout.addLayout(self.enums_layout)
 
     def _create_selection_layout(self):
+        """Builds the header area showing tool title and current status."""
         selection_layout = QVBoxLayout()
         selection_layout.setSpacing(util.DPI(5))
-        selection_layout.setContentsMargins(0, 0, 0, util.DPI(10))
+        selection_layout.setContentsMargins(0, 0, 0, util.DPI(8))
 
         selection_title = QLabel("Selection")
         selection_title.setStyleSheet(
@@ -1127,56 +1095,29 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
 
         self.mainLayout.insertLayout(0, selection_layout)
 
-    def _format_object_name(self, objects):
-        """Returns a human-friendly string for one or multiple objects."""
-        if not objects:
-            return ""
-        if len(objects) == 1:
-            name = objects[0].split("|")[-1]
-            if ":" in name and not self.namespace_display:
-                name = name.split(":")[-1]
-            return ("..." + name[:50]) if len(name) > 50 else name
-        return "(%s)" % len(objects)
+    def _refresh_footer(self):
+        """Updates the interaction bar based on whether valid switches exist."""
+        # Show Close only if not in popup mode (pinned)
+        should_close = not self._auto_close_active
+        self.setBottomBar(closeButton=should_close)
 
-    @staticmethod
-    def formatXformTooltipObjects(objects):
-        return "<html>Current xform target/s:<br>%s<br><br><b>Right-click to modify...</b></html>" % "<br>".join(
-            objects
-        )
-
-    def clearlayout(self, layout):
+    def _clear_layout(self, layout):
+        """Recursively clears a layout of all its child widgets."""
         while layout.count():
             child = layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
             if child.layout():
-                self.clearlayout(child.layout())
-
-    def _refresh_footer(self):
-        """Updates the interaction bar based on whether valid switches exist."""
-        buttons = []
-        if self.comboboxes:
-            buttons.append(
-                base_widgets.DialogButton(
-                    "Apply",
-                    callback=self.apply,
-                    icon=util.return_icon_path("apply"),
-                    highlight=True,
-                )
-            )
-
-        # Show Close only if not in popup mode (pinned)
-        should_close = not self._timer_enabled
-        self.setBottomBar(buttons=buttons, closeButton=should_close)
+                self._clear_layout(child.layout())
 
     # =================================================================================
     # 3. STATE & SETTINGS
     # =================================================================================
 
-    def instance_settings(self):
+    def _load_persistent_settings(self):
+        """Loads user preferences from local storage."""
         self.namespace_display = self.__fix_setting(self.settings.value("namespace_display", False))
         self.all_frames = self.__fix_setting(self.settings.value("all_frames", False))
-
         self.euler_filter = self.__fix_setting(self.settings.value("euler_filter", True))
         self.show_rotate_order = self.__fix_setting(self.settings.value("show_rotate_order", True))
 
@@ -1198,46 +1139,6 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         if refresh:
             self.refresh(force=True)
 
-    def _show_context_menu(self, pos):
-        self.context_menu = QMenu(self)
-        self.context_menu.aboutToShow.connect(self._pause_timer)
-        self.context_menu.aboutToHide.connect(self._enable_timer)
-
-        self.toggle_namespaces_action = self.context_menu.addAction("Show namespaces")
-        self.toggle_namespaces_action.setCheckable(True)
-        self.toggle_namespaces_action.setChecked(self.namespace_display)
-
-        self.show_rotate_order_action = self.context_menu.addAction("Enable Rotate Order")
-        self.show_rotate_order_action.setCheckable(True)
-        self.show_rotate_order_action.setChecked(self.show_rotate_order)
-
-        self.context_menu.addSeparator()
-
-        self.euler_filter_action = self.context_menu.addAction("Auto Euler Filter")
-        self.euler_filter_action.setCheckable(True)
-        self.euler_filter_action.setChecked(self.euler_filter)
-
-        self.context_menu.addSeparator()
-
-        self.check_updates_action = self.context_menu.addAction("Check for updates")
-        self.check_updates_action.setVisible(False)
-        self.context_menu.addSeparator()
-        self.credits_action = self.context_menu.addAction("Credits")
-
-        self.check_updates_action.triggered.connect(self.check_for_updates)
-        self.credits_action.triggered.connect(self.coffee)
-
-        self.show_rotate_order_action.toggled.connect(
-            lambda state: self.set_setting("show_rotate_order", state, refresh=True)
-        )
-        self.toggle_namespaces_action.toggled.connect(
-            lambda state: self.set_setting("namespace_display", state, refresh=True)
-        )
-        self.euler_filter_action.toggled.connect(lambda state: self.set_setting("euler_filter", state))
-
-        exec_fn = getattr(self.context_menu, "exec", None) or getattr(self.context_menu, "exec_", None)
-        exec_fn(QCursor.pos())
-
     # =================================================================================
     # 4. MAYA INTEGRATION
     # =================================================================================
@@ -1252,11 +1153,11 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         except Exception as e:
             cmds.warning("Could not add Maya callbacks: %s" % e)
 
-    def apply(self):
+    def apply_active_changes(self):
         """Commits all currently selected enum values to the scene."""
-        for (enum_attr, _), (attr_item, options_and_objects) in self.comboboxes.items():
+        for (enum_attr, _), (attr_item, options_and_objects) in self._active_switch_widgets.items():
             enum_value = attr_item.currentText()
-            self.apply_changes(enum_value, enum_attr, options_and_objects)
+            self._apply_attribute_switch(enum_value, enum_attr, options_and_objects)
 
     def _remove_callbacks(self):
         try:
@@ -1268,11 +1169,13 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         self._remove_callbacks()
         self._add_callbacks()
 
-    def getSelectedObj(self, long=False):
+    def _get_selected_nodes(self, long=False):
+        """Returns the current Maya selection."""
         return cmds.ls(selection=True, long=long)
 
-    def getEnums(self):
-        spaceswitch_enum_dictionary = {}
+    def _fetch_attribute_data(self):
+        """Analyzes active selection for compatible space-switch attributes and returns structured data."""
+        attr_catalog = {}
 
         def _is_connected(node, attr):
             plug = "%s.%s" % (node, attr)
@@ -1283,26 +1186,26 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
             except Exception:
                 return False
 
-        for object in self.last_selection:
-            if object in spaceswitch_enum_dictionary.keys():
+        for node in self._previous_selection:
+            if node in attr_catalog.keys():
                 continue
 
             # Only user-defined attrs (excludes Maya defaults), but allow rotateOrder if requested
-            orderedAttrs = cmds.listAttr(object, ud=True) or []
-            if self.show_rotate_order and cmds.attributeQuery("rotateOrder", node=object, exists=True):
-                if "rotateOrder" not in orderedAttrs:
-                    orderedAttrs.append("rotateOrder")
+            ordered_attrs = cmds.listAttr(node, ud=True) or []
+            if self.show_rotate_order and cmds.attributeQuery("rotateOrder", node=node, exists=True):
+                if "rotateOrder" not in ordered_attrs:
+                    ordered_attrs.append("rotateOrder")
 
-            if orderedAttrs:
-                for enum_attr in orderedAttrs:
+            if ordered_attrs:
+                for enum_attr in ordered_attrs:
                     try:
-                        attrType = cmds.attributeQuery(enum_attr, node=object, attributeType=True)
+                        attr_type = cmds.attributeQuery(enum_attr, node=node, attributeType=True)
                     except Exception:
                         continue
-                    if attrType != "enum":
+                    if attr_type != "enum":
                         continue
 
-                    raw = cmds.attributeQuery(enum_attr, node=object, listEnum=True) or []
+                    raw = cmds.attributeQuery(enum_attr, node=node, listEnum=True) or []
                     if not raw:
                         continue
 
@@ -1319,56 +1222,53 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                         continue
 
                     # Must be connected to something (unless it's rotateOrder)
-                    if enum_attr != "rotateOrder" and not _is_connected(object, enum_attr):
+                    if enum_attr != "rotateOrder" and not _is_connected(node, enum_attr):
                         continue
 
-                    long_name = cmds.attributeQuery(enum_attr, node=object, niceName=True)
+                    long_name = cmds.attributeQuery(enum_attr, node=node, niceName=True)
 
-                    if enum_attr not in spaceswitch_enum_dictionary.keys():
-                        spaceswitch_enum_dictionary[enum_attr] = {
+                    if enum_attr not in attr_catalog.keys():
+                        attr_catalog[enum_attr] = {
                             "objects": {},
                             "long": long_name,
                         }
 
-                    if object not in spaceswitch_enum_dictionary[enum_attr]["objects"].keys():
-                        spaceswitch_enum_dictionary[enum_attr]["objects"][object] = {
+                    if node not in attr_catalog[enum_attr]["objects"].keys():
+                        attr_catalog[enum_attr]["objects"][node] = {
                             "enum": [],
                             "marked": [],
                             "current": [],
                         }
 
                     # Save options
-                    spaceswitch_enum_dictionary[enum_attr]["objects"][object]["enum"].extend(enum_values_clean)
+                    attr_catalog[enum_attr]["objects"][node]["enum"].extend(enum_values_clean)
 
                     # Keyed values and current
-                    keys = cmds.keyframe("%s.%s" % (object, enum_attr), query=True, valueChange=True) or []
-                    spaceswitch_enum_dictionary[enum_attr]["objects"][object]["marked"] = list(
-                        set(int(x) for x in keys)
-                    ) or [cmds.getAttr("%s.%s" % (object, enum_attr))]
-                    spaceswitch_enum_dictionary[enum_attr]["objects"][object]["current"] = cmds.getAttr(
-                        "%s.%s" % (object, enum_attr)
-                    )
+                    keys = cmds.keyframe("%s.%s" % (node, enum_attr), query=True, valueChange=True) or []
+                    attr_catalog[enum_attr]["objects"][node]["marked"] = list(set(int(x) for x in keys)) or [
+                        cmds.getAttr("%s.%s" % (node, enum_attr))
+                    ]
+                    attr_catalog[enum_attr]["objects"][node]["current"] = cmds.getAttr("%s.%s" % (node, enum_attr))
 
                     # If it's rotateOrder and requested, analyze gimbal
                     if enum_attr == "rotateOrder" and self.show_rotate_order:
-                        gimbal_data = self.analyzer.analyze(object)
-                        spaceswitch_enum_dictionary[enum_attr]["objects"][object]["gimbal"] = gimbal_data
+                        gimbal_data = self.analyzer.analyze(node)
+                        attr_catalog[enum_attr]["objects"][node]["gimbal"] = gimbal_data
 
-        return spaceswitch_enum_dictionary
+        return attr_catalog
 
     # =================================================================================
-    # 5. INTERACTION & POPUP LOGIC
+    #  6. INTERACTION & HOVER LOGIC
     # =================================================================================
 
-    def _update_ui_focus(self, is_active):
-        """Standardized focus management for hover effects."""
-        # Multi-window check: if moving between main and popup, we are still active
+    def _update_interaction_state(self, is_active):
+        """Unified interaction management for multi-window focus tracking."""
         if not is_active:
-            p = QCursor.pos()
-            if isValid(self) and self.frameGeometry().contains(p):
+            cursor_pos = QCursor.pos()
+            if isValid(self) and self.frameGeometry().contains(cursor_pos):
                 is_active = True
             if not is_active and self._active_popup and isValid(self._active_popup) and self._active_popup.isVisible():
-                if self._active_popup.frameGeometry().contains(p):
+                if self._active_popup.frameGeometry().contains(cursor_pos):
                     is_active = True
 
         if self._is_ui_hovered == is_active:
@@ -1376,13 +1276,13 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
 
         self._is_ui_hovered = is_active
 
-        # Stop/Start kill timer based on focus
+        # Toggle auto-close based on interaction
         if self._is_ui_hovered:
-            self._kill_timer.stop()
+            self._auto_close_timer.stop()
         else:
-            self._enable_timer()
+            self._resume_auto_close()
 
-        for (enum_attr, _), (attr_item, _) in self.comboboxes.items():
+        for (enum_attr, _), (attr_item, _) in self._active_switch_widgets.items():
             if not isValid(attr_item):
                 continue
             if hasattr(attr_item, "pill_opacity"):
@@ -1396,40 +1296,34 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
             attr_item.update()
 
     def enterEvent(self, event):
-        self._update_ui_focus(True)
+        self._update_interaction_state(True)
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         # Small delay to see if we moved to the popup or just left
-        QTimer.singleShot(150, lambda: self._update_ui_focus(False))
+        QTimer.singleShot(150, lambda: self._update_interaction_state(False))
         super().leaveEvent(event)
-
-    def _check_mouse_distance_and_close(self):
-        # Use common kill logic
-        self._check_kill_condition()
 
     def _handle_attr_hover(self, item):
         self._popup_pending_item = item
         self._popup_timer.start()
 
     def _handle_attr_leave(self, item):
-        # We don't hide immediately, we let the timer or another hover handle it
-        # or a distance check
+        # Delay hiding to allow transition
         if self._popup_pending_item == item:
             self._popup_pending_item = None
         self._popup_timer.start()
 
     def _show_pending_popup(self):
+        """Displays the attribute choice popup beside the hovered row."""
         # If no pending item or it was deleted, hide current
         if not self._popup_pending_item or not isValid(self._popup_pending_item):
             if self._active_popup and isValid(self._active_popup) and not self._active_popup.underMouse():
                 self._active_popup.hide()
-            # If mouse is over a valid popup, keep it
             elif self._active_popup and isValid(self._active_popup) and self._active_popup.underMouse():
                 pass
             return
 
-        # If we have a pending item
         item = self._popup_pending_item
 
         # If current is same item and visible, do nothing
@@ -1452,65 +1346,109 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         item.update()
 
     def _close_active_popup(self):
+        """Safely removes the current popup."""
         if hasattr(self, "_active_popup") and self._active_popup and isValid(self._active_popup):
             self._active_popup.hide()
             self._active_popup.deleteLater()
             self._active_popup = None
 
     # =================================================================================
-    # 6. CORE APPLICATION LOGIC
+    #  8. HELPERS
+    # =================================================================================
+
+    def _format_object_name(self, objects):
+        """Returns a human-friendly string for one or multiple objects."""
+        if not objects:
+            return ""
+        if len(objects) == 1:
+            name = objects[0].split("|")[-1]
+            if ":" in name and not self.namespace_display:
+                name = name.split(":")[-1]
+            return ("..." + name[:50]) if len(name) > 50 else name
+        return "(%s)" % len(objects)
+
+    @staticmethod
+    def formatXformTooltipObjects(objects):
+        """Formats the HTML tooltip for target objects."""
+        return "<html>Current xform target/s:<br>%s<br><br><b>Right-click to modify...</b></html>" % "<br>".join(
+            objects
+        )
+
+    # =================================================================================
+    #  5. REFRESH & UPDATE LOGIC
     # =================================================================================
 
     def refresh(self, timeChange=False, force=False, *args):
-        self._close_active_popup()
+        """Main update orchestration. Synchronizes UI state with current Maya selection."""
         if timeChange:
             return
 
-        sel = self.getSelectedObj(long=False)
-        if sorted(sel) != sorted(self.last_selection) or force:
-            self.last_selection = sel
-            if not self.selection_label.isVisible():
-                self.selection_label.setVisible(True)
+        self._close_active_popup()
+        current_sel = self._get_selected_nodes(long=False)
 
-            try:
-                self.clearlayout(self.enums_layout)
-                self.comboboxes.clear()
-                if self.last_selection:
-                    self.spaceswitch_enum_dictionary = self.getEnums()
-                    if self.spaceswitch_enum_dictionary:
-                        self.selection_label.setVisible(False)
-
-                        for enum, data in self.spaceswitch_enum_dictionary.items():
-                            unique_controls = sorted(data["objects"].keys())
-                            name = self._format_object_name(unique_controls)
-
-                            attr_item = AttributeItem(
-                                "%s %s" % (name, data["long"].title()),
-                                enum,
-                                unique_controls,
-                                data["objects"],
-                                self,
-                            )
-                            attr_item.setToolTip(self.formatXformTooltipObjects(unique_controls))
-                            attr_item.setContextMenuPolicy(Qt.CustomContextMenu)
-                            attr_item.customContextMenuRequested.connect(
-                                lambda pos, s=attr_item, d=data: self._show_change_target_dialog(s, d)
-                            )
-
-                            options_map = self._build_options_map(data["objects"])
-                            self.comboboxes[(enum, tuple(unique_controls))] = (attr_item, options_map)
-                            self.enums_layout.insertWidget(0, attr_item)
-                self._refresh_footer()
-
-            except Exception as e:
-                cmds.warning("Error adding buttons: %s" % e)
-            finally:
-                self.setMinimumHeight(0)
-                self.resize(self.width(), 0)
-                self.adjustSize()
-        else:
-            # Even if selection didn't change, ensure footer is correct (e.g. on start)
+        # Detect selection change or forced refresh
+        selection_is_same = sorted(current_sel) == sorted(self._previous_selection)
+        if selection_is_same and not force:
             self._refresh_footer()
+            return
+
+        self._previous_selection = current_sel
+        self._rebuild_active_widgets()
+
+    def _rebuild_active_widgets(self):
+        """Fetches data and replaces existing UI elements with new switch widgets."""
+        self._clear_layout(self.enums_layout)
+        self._active_switch_widgets.clear()
+
+        if not self._previous_selection:
+            self.selection_label.setVisible(True)
+            self._finalize_ui_geometry()
+            self._refresh_footer()
+            return
+
+        try:
+            self._switch_data = self._fetch_attribute_data()
+            if not self._switch_data:
+                self.selection_label.setVisible(True)
+            else:
+                self.selection_label.setVisible(False)
+                for enum_name, data in self._switch_data.items():
+                    self._create_switch_item(enum_name, data)
+
+        except Exception as e:
+            cmds.warning(f"Error rebuilding SpaceSwitch widgets: {e}")
+        finally:
+            self._refresh_footer()
+            self._finalize_ui_geometry()
+
+    def _create_switch_item(self, enum_name, data):
+        """Instantiates and registers a single AttributeItem based on provided metadata."""
+        target_nodes = sorted(data["objects"].keys())
+        display_name = self._format_object_name(target_nodes)
+
+        attr_item = AttributeItem(
+            f"{display_name} {data['long'].title()}",
+            enum_name,
+            target_nodes,
+            data["objects"],
+            self,
+        )
+
+        attr_item.setToolTip(self.formatXformTooltipObjects(target_nodes))
+        attr_item.setContextMenuPolicy(Qt.CustomContextMenu)
+        attr_item.customContextMenuRequested.connect(
+            lambda pos, s=attr_item, d=data: self._show_change_target_dialog(s, d)
+        )
+
+        options_map = self._build_options_map(data["objects"])
+        self._active_switch_widgets[(enum_name, tuple(target_nodes))] = (attr_item, options_map)
+        self.enums_layout.insertWidget(0, attr_item)
+
+    def _finalize_ui_geometry(self):
+        """Resets and shrinks the window to perfectly wrap its new contents."""
+        self.setMinimumHeight(0)
+        self.resize(self.width(), 0)
+        self.adjustSize()
 
     def _build_options_map(self, objects_data):
         """Constructs a mapping of enum options to their respective object target sets."""
@@ -1601,7 +1539,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
 
         return keyframes
 
-    def apply_changes(self, enum_value, enum_attr, options_and_objects, all_frames_override=None):
+    def _apply_attribute_switch(self, enum_value, enum_attr, options_and_objects, all_frames_override=None):
         all_frames_setting = all_frames_override if all_frames_override is not None else self.all_frames
 
         # Special case: rotateOrder always applies to all frames
@@ -1686,12 +1624,45 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         anim_curves = list(set(anim_curves))
         cmds.filterCurve(*anim_curves)
 
-    # =================================================================================
-    # 7. MAINTENANCE & UPDATES
-    # =================================================================================
+    def _show_context_menu(self, pos):
+        """Displays global tool configuration menu."""
+        self.context_menu = QMenu(self)
+        self.context_menu.aboutToShow.connect(self._suspend_auto_close)
+        self.context_menu.aboutToHide.connect(self._resume_auto_close)
+
+        self.toggle_namespaces_action = self.context_menu.addAction("Show namespaces")
+        self.toggle_namespaces_action.setCheckable(True)
+        self.toggle_namespaces_action.setChecked(self.namespace_display)
+
+        self.show_rotate_order_action = self.context_menu.addAction("Enable Rotate Order")
+        self.show_rotate_order_action.setCheckable(True)
+        self.show_rotate_order_action.setChecked(self.show_rotate_order)
+
+        self.context_menu.addSeparator()
+
+        self.euler_filter_action = self.context_menu.addAction("Auto Euler Filter")
+        self.euler_filter_action.setCheckable(True)
+        self.euler_filter_action.setChecked(self.euler_filter)
+
+        self.context_menu.addSeparator()
+        self.about_action = self.context_menu.addAction("About")
+        self.about_action.setIcon(QIcon(util.return_icon_path("info")))
+        self.about_action.triggered.connect(self.show_credits_dialog)
+
+        self.show_rotate_order_action.toggled.connect(
+            lambda state: self.set_setting("show_rotate_order", state, refresh=True)
+        )
+        self.toggle_namespaces_action.toggled.connect(
+            lambda state: self.set_setting("namespace_display", state, refresh=True)
+        )
+        self.euler_filter_action.toggled.connect(lambda state: self.set_setting("euler_filter", state))
+
+        exec_fn = getattr(self.context_menu, "exec", None) or getattr(self.context_menu, "exec_", None)
+        exec_fn(QCursor.pos())
 
     def _show_change_target_dialog(self, sender, data):
-        selection = self.getSelectedObj(long=False)
+        """Opens the UI for multi-target management."""
+        selection = self._get_selected_nodes(long=False)
 
         def on_close(objects):
             cmds.select(selection, replace=True)
@@ -1703,76 +1674,21 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         dlg = SetupTargetsDialog(self, objects_dict, on_close=on_close)
         dlg.show()
 
-    def check_for_updates(self, warning=True, *args):
-        import json
-
-        script_name = DATA.get("TITLE")
-
-        url = "https://raw.githubusercontent.com/Alehaaaa/mayascripts/main/version.json"
-
-        if PYSIDE_VERSION < 6:
-            from urllib2 import urlopen  # type: ignore
-        else:
-            from urllib.request import urlopen
-
-        try:
-            response = urlopen(url, timeout=1)
-        except Exception:
-            if warning:
-                om.MGlobal.displayWarning(SpaceSwitchAlehaWidget.NO_INTERNET)
-            return
-        content = response.read()
-
-        if content:
-            data = json.loads(content)
-            script = data[script_name]
-
-            version = str(script["VERSION"])
-            changelog = script["changelog"]
-
-        def convert_list_to_string():
-            result, sublst = [], []
-            for item in changelog:
-                if item:
-                    sublst.append(str(item))
-                else:
-                    if sublst:
-                        result.append(sublst)
-                        sublst = []
-            if sublst:
-                result.append(sublst)
-            result = result[:4]
-            result.append(["is And more is"])
-            return "\n\n".join(["\n".join(x) for x in result])
-
-        if version > DATA.get("VERSION"):
-            update_available = cmds.confirmDialog(
-                title="New update for {0}!".format(DATA.get("TITLE")),
-                message="Version {0} available, you are using {1}\n\nChangelog:\n{2}".format(
-                    version, self.VERSION, convert_list_to_string()
-                ),
-                messageAlign="center",
-                button=["Install", "Close"],
-                defaultButton="Install",
-                cancelButton="Close",
-            )
-            if update_available == "Install":
-                self._cb.clear()
-                self.deleteLater()
-                cmds.evalDeferred(
-                    "import aleha_tools.{} as spaceswitch;try:from importlib import reload;except ImportError:pass;reload(spaceswitch);spaceswitch.SpaceSwitchDialog.show();".format(
-                        script_name
-                    )
-                )
-        else:
-            if warning:
-                om.MGlobal.displayWarning("All up-to-date.")
-
-    def coffee(self):
-        self._pause_timer()
+    def show_credits_dialog(self):
+        """Displays credits/donation dialog."""
+        self._suspend_auto_close()
         widgets.Coffee.showUI(self, data=DATA)
         if widgets.Coffee._instance:
-            widgets.Coffee._instance.finished.connect(lambda *args: self._enable_timer())
+            widgets.Coffee._instance.finished.connect(lambda *args: self._resume_auto_close())
+
+    # =================================================================================
+    #  7. APPLICATION ACTIONS
+    # =================================================================================
+
+
+# =================================================================================
+#  6. ENTRY POINTS & MANAGER
+# =================================================================================
 
 
 class SpaceSwitchManager:
@@ -1815,8 +1731,10 @@ class SpaceSwitchManager:
 
 
 def show():
+    """Entry point to launch SpaceSwitch in pinned mode."""
     SpaceSwitchManager.show()
 
 
 def popup():
+    """Entry point to launch SpaceSwitch in popup mode."""
     SpaceSwitchManager.popup()
