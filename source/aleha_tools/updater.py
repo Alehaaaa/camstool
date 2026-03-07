@@ -385,7 +385,7 @@ def _check_for_updates(ui, warning=True, force=False):
                         None,
                         "%s Update" % ui.TITLE,
                         "You have successfully updated the tool!<br><br>" + "These were the last changes:<br>" + formated_changelog,
-                        title="Installed %s" % latest_version.replace("\n", "").replace("\r", ""),
+                        title="Installed %s %s" % (ui.TITLE, latest_version.replace("\n", "").replace("\r", "")),
                         icon=util.return_icon_path("success.svg"),
                         closeButton=True,
                     )
