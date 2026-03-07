@@ -89,7 +89,7 @@ _MAIN_DICT = sys.modules["__main__"].__dict__
 
 DATA = {
     "TOOL": "SpaceSwitch",
-    "VERSION": "1.3.2",
+    "VERSION": "1.3.4",
 }
 DATA["AUTHOR"] = aleha_tools.DATA["AUTHOR"]
 
@@ -311,13 +311,14 @@ class FloatingWidget(base_widgets.QFlatDialog):
 
         self._is_dragging = False
         self._drag_offset = QPoint()
+        self._drag_start_pos = QPoint()
 
-        self._timer_enabled = popup
+        self._timer_enabled = True if popup else None
 
         # New approach: Event-driven kill timer instead of polling
         self._kill_timer = QTimer(self)
         self._kill_timer.setSingleShot(True)
-        self._kill_timer.setInterval(1000)  # 1 second grace period
+        self._kill_timer.setInterval(400)  # Faster grace period
         self._kill_timer.timeout.connect(self._check_kill_condition)
 
         self._setup_ui()
@@ -351,9 +352,16 @@ class FloatingWidget(base_widgets.QFlatDialog):
 
     def _is_mouse_over_any_part(self):
         p = QCursor.pos()
+        if not isValid(self):
+            return False
         if self.frameGeometry().contains(p):
             return True
-        if hasattr(self, "_active_popup") and self._active_popup and self._active_popup.isVisible():
+        if (
+            hasattr(self, "_active_popup")
+            and self._active_popup
+            and isValid(self._active_popup)
+            and self._active_popup.isVisible()
+        ):
             if self._active_popup.frameGeometry().contains(p):
                 return True
         return False
@@ -433,6 +441,7 @@ class FloatingWidget(base_widgets.QFlatDialog):
                 global_position = e.globalPos()
             else:
                 global_position = e.globalPosition().toPoint()
+            self._drag_start_pos = global_position
             self._drag_offset = global_position - self.frameGeometry().topLeft()
             self._pause_timer()
         super().mousePressEvent(e)
@@ -449,7 +458,20 @@ class FloatingWidget(base_widgets.QFlatDialog):
     def mouseReleaseEvent(self, e):
         if e.button() == Qt.LeftButton and self._is_dragging:
             self._is_dragging = False
-            self.showBottomBar()
+            if PYSIDE_VERSION < 6:
+                global_position = e.globalPos()
+            else:
+                global_position = e.globalPosition().toPoint()
+
+            # Check if we moved enough to convert to "show mode" (persistent window)
+            drag_dist = (global_position - self._drag_start_pos).manhattanLength()
+            if drag_dist > util.DPI(10):
+                self.showBottomBar()
+            elif self._timer_enabled is False:
+                # Was a small click or tiny drag in popup mode, resume timer if still outside
+                self._timer_enabled = True
+                self._enable_timer()
+
         super().mouseReleaseEvent(e)
 
     def _setup_timer(self):
@@ -462,7 +484,9 @@ class FloatingWidget(base_widgets.QFlatDialog):
             self._kill_timer.start()
 
     def _pause_timer(self):
-        self._timer_enabled = False
+        # Only set to False (paused) if we were actually in popup mode (True)
+        if self._timer_enabled is True:
+            self._timer_enabled = False
         if hasattr(self, "_kill_timer"):
             self._kill_timer.stop()
 
@@ -580,9 +604,7 @@ class AttributePopup(QWidget):
                     dot.setStyleSheet("background: transparent;")
                 dot_layout.addWidget(dot)
 
-                btn.clicked.connect(
-                    lambda checked=False, idx=i, m=is_all: self.select_option(idx, all_frames=m)
-                )
+                btn.clicked.connect(lambda checked=False, idx=i, m=is_all: self.select_option(idx, all_frames=m))
                 layout.addWidget(btn)
 
                 if is_rr and i == 2:
@@ -984,11 +1006,7 @@ class Timeline(QWidget):
     def get_timeline(cls):
         """Fetches the Maya timeline widget."""
         tline = mel.eval("$tmpVar=$gPlayBackSlider")
-        ptr = (
-            omui.MQtUtil.findControl(tline)
-            or omui.MQtUtil.findLayout(tline)
-            or omui.MQtUtil.findMenuItem(tline)
-        )
+        ptr = omui.MQtUtil.findControl(tline) or omui.MQtUtil.findLayout(tline) or omui.MQtUtil.findMenuItem(tline)
         if ptr:
             return wrapInstance(int(ptr), QWidget)
 
@@ -1095,8 +1113,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
 
         selection_title = QLabel("Selection")
         selection_title.setStyleSheet(
-            "font-size: %spx; color: %s; font-weight: bold; background: transparent;"
-            % (util.DPI(20), self.TEXT_COLOR)
+            "font-size: %spx; color: %s; font-weight: bold; background: transparent;" % (util.DPI(20), self.TEXT_COLOR)
         )
         selection_title.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
         selection_title.setWordWrap(False)
@@ -1123,12 +1140,8 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
 
     @staticmethod
     def formatXformTooltipObjects(objects):
-        return (
-            "<html>"
-            "Current xform target/s:<br>"
-            "%s"
-            "<br><br><b>Right-click to modify...</b>"
-            "</html>" % "<br>".join(objects)
+        return "<html>Current xform target/s:<br>%s<br><br><b>Right-click to modify...</b></html>" % "<br>".join(
+            objects
         )
 
     def clearlayout(self, layout):
@@ -1325,9 +1338,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                         }
 
                     # Save options
-                    spaceswitch_enum_dictionary[enum_attr]["objects"][object]["enum"].extend(
-                        enum_values_clean
-                    )
+                    spaceswitch_enum_dictionary[enum_attr]["objects"][object]["enum"].extend(enum_values_clean)
 
                     # Keyed values and current
                     keys = cmds.keyframe("%s.%s" % (object, enum_attr), query=True, valueChange=True) or []
@@ -1354,9 +1365,9 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         # Multi-window check: if moving between main and popup, we are still active
         if not is_active:
             p = QCursor.pos()
-            if self.frameGeometry().contains(p):
+            if isValid(self) and self.frameGeometry().contains(p):
                 is_active = True
-            if not is_active and self._active_popup and self._active_popup.isVisible():
+            if not is_active and self._active_popup and isValid(self._active_popup) and self._active_popup.isVisible():
                 if self._active_popup.frameGeometry().contains(p):
                     is_active = True
 
@@ -1372,6 +1383,8 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
             self._enable_timer()
 
         for (enum_attr, _), (attr_item, _) in self.comboboxes.items():
+            if not isValid(attr_item):
+                continue
             if hasattr(attr_item, "pill_opacity"):
                 attr_item.pill_opacity.setOpacity(1.0 if self._is_ui_hovered else 0.0)
 
@@ -1407,12 +1420,12 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         self._popup_timer.start()
 
     def _show_pending_popup(self):
-        # If no pending item, hide current
-        if not self._popup_pending_item:
-            if self._active_popup and not self._active_popup.underMouse():
+        # If no pending item or it was deleted, hide current
+        if not self._popup_pending_item or not isValid(self._popup_pending_item):
+            if self._active_popup and isValid(self._active_popup) and not self._active_popup.underMouse():
                 self._active_popup.hide()
-            # If mouse is over popup, keep it
-            elif self._active_popup and self._active_popup.underMouse():
+            # If mouse is over a valid popup, keep it
+            elif self._active_popup and isValid(self._active_popup) and self._active_popup.underMouse():
                 pass
             return
 
@@ -1420,7 +1433,12 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         item = self._popup_pending_item
 
         # If current is same item and visible, do nothing
-        if self._active_popup and self._active_popup.item_widget == item and self._active_popup.isVisible():
+        if (
+            self._active_popup
+            and isValid(self._active_popup)
+            and self._active_popup.item_widget == item
+            and self._active_popup.isVisible()
+        ):
             return
 
         # Otherwise, switch
@@ -1434,7 +1452,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         item.update()
 
     def _close_active_popup(self):
-        if hasattr(self, "_active_popup") and self._active_popup:
+        if hasattr(self, "_active_popup") and self._active_popup and isValid(self._active_popup):
             self._active_popup.hide()
             self._active_popup.deleteLater()
             self._active_popup = None
@@ -1490,6 +1508,9 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                 self.setMinimumHeight(0)
                 self.resize(self.width(), 0)
                 self.adjustSize()
+        else:
+            # Even if selection didn't change, ensure footer is correct (e.g. on start)
+            self._refresh_footer()
 
     def _build_options_map(self, objects_data):
         """Constructs a mapping of enum options to their respective object target sets."""
@@ -1571,15 +1592,12 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         all_keys = set(sum([cmds.keyframe(t, query=True) or [] for t in targets], []))
 
         keyframes = {
-            frame: [t for t in targets if frame in (cmds.keyframe(t, query=True) or [])]
-            for frame in sorted(all_keys)
+            frame: [t for t in targets if frame in (cmds.keyframe(t, query=True) or [])] for frame in sorted(all_keys)
         }
 
         # Restrict to timeline selection range if active
         if timeline_selection:
-            keyframes = {
-                f: objs for f, objs in keyframes.items() if current_frames[0] <= f <= current_frames[1]
-            }
+            keyframes = {f: objs for f, objs in keyframes.items() if current_frames[0] <= f <= current_frames[1]}
 
         return keyframes
 
@@ -1629,9 +1647,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
                         existing_keys = cmds.keyframe(attr_plug, query=True, keyframeCount=True) or 0
 
                         if existing_keys == 0:
-                            temp_keyframes.setdefault(target, {}).setdefault(enum_attr, []).append(
-                                current_time
-                            )
+                            temp_keyframes.setdefault(target, {}).setdefault(enum_attr, []).append(current_time)
                             cmds.keyframe(attr_plug)
 
                         self.do_xform(target, enum_attr, enum_index)
