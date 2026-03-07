@@ -287,7 +287,7 @@ class FloatingWidget(base_widgets.QFlatDialog):
         # Event-driven auto-close mechanism
         self._auto_close_timer = QTimer(self)
         self._auto_close_timer.setSingleShot(True)
-        self._auto_close_timer.setInterval(400)
+        self._auto_close_timer.setInterval(200)
         self._auto_close_timer.timeout.connect(self._process_auto_close_request)
 
         self._setup_ui()
@@ -812,6 +812,7 @@ class SetupTargetsDialog(FloatingWidget):
         self.setBottomBar(
             [base_widgets.DialogButton("Add", callback=self._add_target, icon=util.return_icon_path("add"), highlight=True)],
             closeButton=True,
+            spacing=util.DPI(2),
         )
 
     def _add_target(self):
