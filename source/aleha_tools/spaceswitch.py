@@ -1066,7 +1066,7 @@ class SpaceSwitchAlehaWidget(FloatingWidget):
         """Builds the header area showing tool title and current status."""
         selection_layout = QVBoxLayout()
         selection_layout.setSpacing(util.DPI(5))
-        selection_layout.setContentsMargins(0, 0, 0, util.DPI(8))
+        selection_layout.setContentsMargins(0, util.DPI(6), 0, util.DPI(8))
 
         selection_title = QLabel("Selection")
         selection_title.setStyleSheet("font-size: %spx; color: %s; font-weight: bold; background: transparent;" % (util.DPI(20), self.TEXT_COLOR))
