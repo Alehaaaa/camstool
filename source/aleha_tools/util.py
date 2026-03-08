@@ -29,7 +29,7 @@ def return_icon_path(icon: str) -> str:
     if not icon_path.suffix:
         icon_path = icon_path.with_suffix(".png")
 
-    return str(Path(__file__).parent / "_icons" / icon_path.name)
+    return str(Path(__file__).resolve().parent / "_icons" / icon_path.name)
 
 
 def make_inViewMessage(message, icon="camera"):
